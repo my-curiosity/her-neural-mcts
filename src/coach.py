@@ -358,7 +358,7 @@ class Coach(ABC):
             )
             if metrics['mode'] == 'train': # self.args.hindsight_experience_replay and
                 self.logger.warning('start with hindsight')
-                #self.add_hindsight_history(game, iteration_examples, mcts)
+                self.add_hindsight_history(game, iteration_examples, mcts)
                 self.logger.warning('end hindsight')
 
         iteration_examples = self.augment_buffer(
