@@ -106,7 +106,9 @@ class Test_Hindsightexperience_replay(unittest.TestCase):
            ' --selfplay_buffer_window 50'
            ' --balance_buffer False'
            ' --max_percent_of_minimal_reward_runs_in_buffer 0.3'
-           ' --use-puct True').split()
+           ' --use-puct True'
+           ' --hindsight_samples 1'
+        ).split()
         random.seed(42)
         np.random.seed(0)
         tf.random.set_seed(

@@ -444,6 +444,8 @@ class Config:
                             help='If argument is true, each generated equation gets a unique identifier'
                                  'If argument is false. identifier is missing and a new generated '
                                  'equation will overwrite an existing formula which has the same string representation. ')
+        parser.add_argument('--hindsight_samples', default=1,
+                            help='Number of hindsight samples to use at each tree depth')
 
         args = parser.parse_args()
         if args.seed is None:
