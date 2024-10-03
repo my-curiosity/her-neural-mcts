@@ -107,6 +107,7 @@ class Test_Hindsightexperience_replay(unittest.TestCase):
            ' --balance_buffer False'
            ' --max_percent_of_minimal_reward_runs_in_buffer 0.3'
            ' --use-puct True'
+           ' --training_mode mcts'
            ' --hindsight_samples 1'
         ).split()
         random.seed(42)
