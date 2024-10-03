@@ -30,8 +30,8 @@ def run():
     wandb_path = ROOT_DIR / '.wandb' /  args.experiment_name / \
                  f"{unique_dir}"
     wandb_path.mkdir(parents=True, exist_ok=True)
-    wandb.init(entity="wwjbrugger", config=args.__dict__,
-               project="neural_guided_symbolic_regression",
+    wandb.init(entity="my_cur10s1ty-tu-darmstadt", config=args.__dict__,
+               project="her-neural-mcts",
                sync_tensorboard=True, tensorboard=True,
                dir=wandb_path, mode=args.wandb,
                name=args.experiment_name)

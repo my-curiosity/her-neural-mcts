@@ -25,7 +25,7 @@ class Test_Hindsightexperience_replay(unittest.TestCase):
            ' --only_test False'
            ' --seed 1'
            ' --logging_level 30'
-           ' --wandb disabled'
+           ' --wandb offline'
            ' --gpu 0'
            ' --data data_grammar_8/run_1'
            ' --num_selfplay_iterations 50'
