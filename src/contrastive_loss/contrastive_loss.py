@@ -1,6 +1,8 @@
 import tensorflow as tf
 import numpy as np
-def prepare_for_contrastive_loss( input_encoder_measurement, axis_to_split):
+
+
+def prepare_for_contrastive_loss(input_encoder_measurement, axis_to_split):
     """
     Splits a dataset into two pieces. So a tensor of Size [Batch, Rows, Columns, ValueEncoding] with axis_to_split = 1
     is changed to [2 * Batch, Rows /2, Columns, ValueEncoding].
@@ -9,14 +11,12 @@ def prepare_for_contrastive_loss( input_encoder_measurement, axis_to_split):
     :param input_encoder_measurement:
     :return:
     """
-    list_with_datasets = tf.unstack(
-        input_encoder_measurement
-    )
+    list_with_datasets = tf.unstack(input_encoder_measurement)
     splited_tensors = []
     for tensor in list_with_datasets:
-        t_ =sorted_split(tensor)
+        t_ = sorted_split(tensor)
 
-        #t_ = random_split(axis_to_split, tensor)
+        # t_ = random_split(axis_to_split, tensor)
         splited_tensors.append(t_)
     input_encoder_measurement_contrastive_loss = tf.concat(splited_tensors, axis=0)
 
@@ -30,7 +30,7 @@ def prepare_for_contrastive_loss( input_encoder_measurement, axis_to_split):
 
 def random_split(axis_to_split, tensor):
     t = tf.split(
-        tensor, num_or_size_splits=2, axis=axis_to_split - 1, num=None, name='split'
+        tensor, num_or_size_splits=2, axis=axis_to_split - 1, num=None, name="split"
     )
     t_ = tf.stack(t, axis=0)
     return t_
@@ -45,14 +45,14 @@ def sorted_split(tensor):
     return t_
 
 
-def postprocess_contrastive_loss( output_encoder_measurement):
+def postprocess_contrastive_loss(output_encoder_measurement):
     """
     sums up rows n and n+1 to get n/2 rows
     :param output_encoder_measurement:
     :return:
     """
     old_shape = tf.shape(output_encoder_measurement)
-    new_shape = [int(old_shape[0]//2), 2,old_shape[1] ]
+    new_shape = [int(old_shape[0] // 2), 2, old_shape[1]]
 
     reshaped_tensor = tf.reshape(output_encoder_measurement, new_shape)
 

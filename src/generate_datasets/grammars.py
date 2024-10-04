@@ -1,7 +1,6 @@
 def get_grammars(grammar_to_use):
-    if grammar_to_use  == '1':
-        grammar_string = \
-            """  
+    if grammar_to_use == "1":
+        grammar_string = """  
             S -> '+' S S [0.25]
             S -> '-' S S [0.05]
             S -> '*' S S [0.1]
@@ -32,9 +31,8 @@ def get_grammars(grammar_to_use):
             I -> '**' '2' 'x_1'     [0.2]
             Variable -> 'x_0'[0.5] | 'x_1' [0.5]
                """
-    elif grammar_to_use  == '2':
-        grammar_string = \
-            """  
+    elif grammar_to_use == "2":
+        grammar_string = """  
             S -> '+' S S [0.15]
             S -> '-' S S [0.1]
             S -> '*' S S [0.15]
@@ -59,9 +57,8 @@ def get_grammars(grammar_to_use):
             I ->  'c'      [0.25]
             Variable -> 'x_0'[0.5] | 'x_1' [0.5]
                """
-    elif grammar_to_use  == 'nguyen':
-        grammar_string = \
-            """  
+    elif grammar_to_use == "nguyen":
+        grammar_string = """  
             S -> '+' '+' '**' '3'  'x_0' '**'  '2'  'x_0'  'x_0'   [0.08] 
             S -> '+' '+' '+' '**' '4' 'x_0' '**' '3'  'x_0' '**'  '2'  'x_0'  'x_0'   [0.08]
             S -> '+' '+' '+' '+' '**' 5 'x_0' '**' '4' 'x_0' '**' '3'  'x_0' '**'  '2'  'x_0'  'x_0'   [0.08]
@@ -77,9 +74,8 @@ def get_grammars(grammar_to_use):
             Variable -> 'x_0'[0.5] | 'x_1'  [0.5]  [0.5]
                """
 
-    elif grammar_to_use  == '4':
-        grammar_string = \
-            """  
+    elif grammar_to_use == "4":
+        grammar_string = """  
             S -> '+' S S [0.1875]
             S -> '-' S S [0.125]
             S -> '*' S S [0.125]
@@ -100,9 +96,8 @@ def get_grammars(grammar_to_use):
             Variable -> 'x_0'[0.5] | 'x_1' [0.5]
                """
 
-    elif grammar_to_use  == '5':
-        grammar_string = \
-            """  
+    elif grammar_to_use == "5":
+        grammar_string = """  
             S -> '6' S[0.05]| '5' S[0.05]| '4' S[0.05]| '3' S[0.05]| '2' S[0.05]| '0.5' S[0.05]
             S -> '+' S[0.05]| '-' S[0.05] |  '*' S[0.05]| '/' S[0.05]
             S -> 'sin' S[0.05]| 'cos' S[0.05] |  'log' S[0.05] | '**' S[0.05] 
@@ -111,9 +106,8 @@ def get_grammars(grammar_to_use):
 
             Variable -> 'x_0'[0.5] | 'x_1' [0.5]
                """
-    elif grammar_to_use  == 'curated_equations':  # grammar from data_grammar_8
-        grammar_string = \
-            """  
+    elif grammar_to_use == "curated_equations":  # grammar from data_grammar_8
+        grammar_string = """  
             S -> '+' 'c' Variable [0.05]
             S -> '+' 'c' '**' Power Variable [0.05]
             S -> '+' 'c' 'sin' Variable [0.05]
@@ -139,10 +133,8 @@ def get_grammars(grammar_to_use):
             Variable -> 'x_0'[0.5] | 'x_1' [0.5] 
                """
 
-
-    elif grammar_to_use  == 'curated_equations_old':
-        grammar_string = \
-            """  
+    elif grammar_to_use == "curated_equations_old":
+        grammar_string = """  
             S -> '+' 'c' 'x_0' [0.025]
             S -> '+' 'c' '**' '2' 'x_0' [0.025]
             S -> '+' 'c' '**' '3' 'x_0' [0.025]
@@ -192,9 +184,8 @@ def get_grammars(grammar_to_use):
             Variable -> 'x_0'[0.5] | 'x_1' [0.5]
                """
 
-    elif grammar_to_use  == 'Token_Based':
-        grammar_string = \
-            """  
+    elif grammar_to_use == "Token_Based":
+        grammar_string = """  
             S -> '+' S [0.058825]
             S -> '-' S [0.058825]
             S -> '/' S [0.058825]
@@ -218,6 +209,6 @@ def get_grammars(grammar_to_use):
                """
 
     else:
-        raise AssertionError('grammar you want to use does not exist')
+        raise AssertionError("grammar you want to use does not exist")
 
     return grammar_string

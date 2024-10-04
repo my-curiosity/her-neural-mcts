@@ -2,6 +2,7 @@
 Define the abstract Game class for providing a structure/ interface for agent environments.
 
 """
+
 from abc import ABC, abstractmethod
 import typing
 
@@ -9,18 +10,24 @@ import numpy as np
 
 
 class GameState:
-    canonical_state: typing.Any     # s_t
-    observation: np.ndarray         # o_t
-    action: int     # a_t
-    player: int     # player_t
-    done: bool      # I(s_t = s_T)
+    canonical_state: typing.Any  # s_t
+    observation: np.ndarray  # o_t
+    action: int  # a_t
+    player: int  # player_t
+    done: bool  # I(s_t = s_T)
     hash_previous_state: str
-    hash : str
+    hash: str
 
-    def __init__(self, syntax_tree, observation, done=False, hash=None,
-                 production_action=None,
-                 previous_state=None,
-                 residual_calculated=False):
+    def __init__(
+        self,
+        syntax_tree,
+        observation,
+        done=False,
+        hash=None,
+        production_action=None,
+        previous_state=None,
+        residual_calculated=False,
+    ):
         self.syntax_tree = syntax_tree
         self.observation = observation
         self.done = done
@@ -49,7 +56,9 @@ class Game(ABC):
         self.n_players = n_players
         self.n_symmetries = 1
         if self.n_players > 2:
-            raise NotImplementedError(f"Environments for more than 2 agents are not yet supported, {n_players} > 2")
+            raise NotImplementedError(
+                f"Environments for more than 2 agents are not yet supported, {n_players} > 2"
+            )
         self.max_path_length = None
 
     @abstractmethod
@@ -74,7 +83,9 @@ class Game(ABC):
         """
 
     @abstractmethod
-    def getNextState(self, state: GameState, action: int, **kwargs) -> typing.Tuple[GameState, float]:
+    def getNextState(
+        self, state: GameState, action: int, **kwargs
+    ) -> typing.Tuple[GameState, float]:
         """
         Perform an action in the environment and observe the transition and reward.
         :param state: GameState Data structure containing the specifics of the current environment state.

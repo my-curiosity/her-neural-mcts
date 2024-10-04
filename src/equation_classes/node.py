@@ -3,7 +3,7 @@ from nltk.grammar import is_terminal
 import bisect
 
 
-class Node():
+class Node:
     def __init__(self, tree, node_id, parent_node, depth):
         self.tree = tree
         bisect.insort(self.tree.nodes_to_expand, node_id)
@@ -26,38 +26,42 @@ class Node():
 
     def prefix_to_syntax_tree(self, prefix, recursive=True):
         self.node_symbol = prefix.pop(0)
-        self.invertible = self.parent_node.invertible and \
-                          self.parent_node.math_class.invertible
+        self.invertible = (
+            self.parent_node.invertible and self.parent_node.math_class.invertible
+        )
         if not str(self.node_symbol) in self.tree.non_terminals:
             self.tree.nodes_to_expand.remove(self.node_id)
 
         if self.node_symbol in self.tree.operator_to_class.keys():
-            self.math_class = self.tree.operator_to_class[self.node_symbol](
-                node=self
-            )
+            self.math_class = self.tree.operator_to_class[self.node_symbol](node=self)
             total_number_of_child_in_one_branch = geometric_sum(
                 max_branching_factor=self.tree.max_branching_factor,
-                n=self.tree.max_depth - (self.depth + 2)
+                n=self.tree.max_depth - (self.depth + 2),
             )
             for i in range(self.math_class.num_child):
-                child_node_id = self.node_id + 1 + i * total_number_of_child_in_one_branch
-                child_node = Node(node_id=child_node_id,
-                                  tree=self.tree,
-                                  parent_node=self,
-                                  depth=self.depth + 1
-                                  )
+                child_node_id = (
+                    self.node_id + 1 + i * total_number_of_child_in_one_branch
+                )
+                child_node = Node(
+                    node_id=child_node_id,
+                    tree=self.tree,
+                    parent_node=self,
+                    depth=self.depth + 1,
+                )
                 self.list_children.append((child_node))
                 if recursive:
                     prefix = child_node.prefix_to_syntax_tree(prefix=prefix)
         else:
             # not a mathematical operator
-            self.math_class = self.tree.operator_to_class['terminal'](
-                node=self
-            )
+            self.math_class = self.tree.operator_to_class["terminal"](node=self)
         return prefix
 
     def print(self):
-        ret = f"d: {self.depth}  id: {str(self.node_id):<5} " + "\t" * self.depth + str(self.node_symbol)
+        ret = (
+            f"d: {self.depth}  id: {str(self.node_id):<5} "
+            + "\t" * self.depth
+            + str(self.node_symbol)
+        )
         print(ret)
         for child in self.list_children:
             child.print()
@@ -86,7 +90,8 @@ class Node():
                 f"When constructing the tree from a list of production index a error occurred. "
                 f"Current node and the production rule selected at this node do not fit each other."
                 f"The current node symbol is {self.node_symbol}."
-                f"The selected production is {selected_production}")
+                f"The selected production is {selected_production}"
+            )
 
     def count_nodes_in_tree(self, current_count=0):
         # goes through all nodes and its children should be the same as

@@ -1,7 +1,7 @@
 from bisect import bisect_left
 
 
-class MaxList():
+class MaxList:
     def __init__(self, args):
         self.max_elements_in_best_list = args.max_elements_in_best_list
         self.max_list_keys = []  # smallest element is left

@@ -10,6 +10,7 @@ probabilities. The MCTS also discounts backed up rewards given that gamma < 1.
 Notes:
  -  Adapted from https://github.com/suragnair/alpha-zero-general and https://github.com/kaesve/muzero/tree/master
 """
+
 import typing
 import numpy as np
 from src.game.game import GameState
@@ -35,7 +36,9 @@ class AmEx_MCTS(ClassicMCTS):
         self.not_completely_explored_moves_for_s = {}
         self.states = {}
 
-    def run_mcts(self, state: GameState, temperature: float) -> typing.Tuple[np.ndarray, float]:
+    def run_mcts(
+        self, state: GameState, temperature: float
+    ) -> typing.Tuple[np.ndarray, float]:
         """
         This function performs 'num_MCTS_sims' simulations of MCTS starting
         from the provided root GameState.
@@ -66,18 +69,22 @@ class AmEx_MCTS(ClassicMCTS):
 
         # Aggregate root state value over MCTS back-propagated values
         mct_return_list = []
-        not_completely_explored = np.any(self.not_completely_explored_moves_for_s[state.hash])
+        not_completely_explored = np.any(
+            self.not_completely_explored_moves_for_s[state.hash]
+        )
         start_time = time.time()
         # -2 for y node and start node
-        num_mcts_sims = int(max(10,
-                            self.args.num_MCTS_sims *
-                            4 ** (- (len(state.syntax_tree.dict_of_nodes) - 2))))
+        num_mcts_sims = int(
+            max(
+                10,
+                self.args.num_MCTS_sims
+                * 4 ** (-(len(state.syntax_tree.dict_of_nodes) - 2)),
+            )
+        )
 
         for num_sim in range(num_mcts_sims):
             if not_completely_explored:
-                mct_return, not_completely_explored = self._search(
-                    state=state
-                )
+                mct_return, not_completely_explored = self._search(state=state)
                 mct_return_list.append(mct_return)
             else:
                 break
@@ -85,16 +92,15 @@ class AmEx_MCTS(ClassicMCTS):
         if not_completely_explored:
             # MCTS Visit count array for each edge 'a' from root node 's_0_hash'.
             move_probabilities = self.calculate_move_probabilities(
-                s_0_hash,
-                self.times_edge_s_a_was_visited
+                s_0_hash, self.times_edge_s_a_was_visited
             )
             v = (np.max(mct_return_list) * num_mcts_sims + v_0) / (num_mcts_sims + 1)
         else:
             self.update_full_exploration_to_root_node(state_hash=s_0_hash)
             # MCTS q-values array for each edge 'a' from root node 's_0_hash'.
-            move_probabilities = self.calculate_move_probabilities(s_0_hash,
-                                                                   self.Qsa,
-                                                                   True)
+            move_probabilities = self.calculate_move_probabilities(
+                s_0_hash, self.Qsa, True
+            )
             v = self.Qsa[(s_0_hash, tie_breaking_argmax(move_probabilities))]
 
         return move_probabilities, v
@@ -109,19 +115,26 @@ class AmEx_MCTS(ClassicMCTS):
         if not self.states[state_hash].previous_state is None:
             state = self.states[state_hash]
             # check if parent node think the child node is not full explored
-            if self.not_completely_explored_moves_for_s[state.previous_state.hash][state.production_action]:
-                self.not_completely_explored_moves_for_s[state.previous_state.hash][state.production_action] = False
-                if np.any(self.not_completely_explored_moves_for_s[state.previous_state.hash]):
-                    self.update_full_exploration_to_root_node(state_hash=state.previous_state.hash)
+            if self.not_completely_explored_moves_for_s[state.previous_state.hash][
+                state.production_action
+            ]:
+                self.not_completely_explored_moves_for_s[state.previous_state.hash][
+                    state.production_action
+                ] = False
+                if np.any(
+                    self.not_completely_explored_moves_for_s[state.previous_state.hash]
+                ):
+                    self.update_full_exploration_to_root_node(
+                        state_hash=state.previous_state.hash
+                    )
 
     def clear_tree(self) -> None:
-        """ Clear all statistics stored in the current search tree """
+        """Clear all statistics stored in the current search tree"""
         super().clear_tree()
         self.not_completely_explored_moves_for_s = {}
         self.states = {}
 
-    def initialize_root(self, state: GameState) -> \
-            typing.Tuple[bytes, float]:
+    def initialize_root(self, state: GameState) -> typing.Tuple[bytes, float]:
         """
         Perform initial inference for the root state.
         Additionally, mask the illegal moves in the network prior and
@@ -141,9 +154,12 @@ class AmEx_MCTS(ClassicMCTS):
 
             self.Ps[s_0_hash], v_0 = self.get_prior_and_value(state)
             # Mask the prior for illegal moves, and re-normalize accordingly.
-            self.valid_moves_for_s[s_0_hash] = self.game.getLegalMoves(state).astype(bool)
-            self.not_completely_explored_moves_for_s[s_0_hash] = \
+            self.valid_moves_for_s[s_0_hash] = self.game.getLegalMoves(state).astype(
+                bool
+            )
+            self.not_completely_explored_moves_for_s[s_0_hash] = (
                 self.game.getLegalMoves(state).astype(bool)
+            )
 
             self.Ps[s_0_hash] *= self.valid_moves_for_s[s_0_hash]
             self.Ps[s_0_hash] = self.Ps[s_0_hash] / (1e-8 + np.sum(self.Ps[s_0_hash]))
@@ -153,8 +169,11 @@ class AmEx_MCTS(ClassicMCTS):
 
         return s_0_hash, v_0
 
-    def _search(self, state: GameState,
-                path: typing.Tuple[int, ...] = tuple(), ) -> (float, bool):
+    def _search(
+        self,
+        state: GameState,
+        path: typing.Tuple[int, ...] = tuple(),
+    ) -> (float, bool):
         """
         Recursively perform MCTS search inside the actual environments with
         search-paths guided by the PUCT formula.
@@ -192,50 +211,52 @@ class AmEx_MCTS(ClassicMCTS):
         # EXPAND and SIMULATE
         if (state_hash, a) not in self.Ssa:
             value = self.rollout_for_valid_moves(
-                a=a,
-                state_hash=state_hash,
-                state=state,
-                path=path
+                a=a, state_hash=state_hash, state=state, path=path
             )
             pass
 
         elif not self.Ssa[(state_hash, a)].done:
             # walk known part of the net
-            value, _ = self._search(
-                state=self.Ssa[(state_hash, a)],
-                path=path + (a,)
-            )
+            value, _ = self._search(state=self.Ssa[(state_hash, a)], path=path + (a,))
 
         else:  # is in Ssa and done
-            raise RuntimeError(f"State is in Ssa and done."
-                               f"This should not happen!"
-                               f"State hash: {state_hash}, action: {a}"
-                               f"Ssa entry {self.Ssa[(state_hash, a)].hash}")
+            raise RuntimeError(
+                f"State is in Ssa and done."
+                f"This should not happen!"
+                f"State hash: {state_hash}, action: {a}"
+                f"Ssa entry {self.Ssa[(state_hash, a)].hash}"
+            )
 
         # BACKUP
-        mct_return = self.backup(a=a,
-                                 state_hash=state_hash,
-                                 value=value,
-                                 a_max=a_max)
+        mct_return = self.backup(a=a, state_hash=state_hash, value=value, a_max=a_max)
 
-        not_subtree_completed = np.any(self.not_completely_explored_moves_for_s[state_hash])
+        not_subtree_completed = np.any(
+            self.not_completely_explored_moves_for_s[state_hash]
+        )
 
         if not not_subtree_completed and state.previous_state is not None:
-            self.Qsa[(state.previous_state.hash, state.production_action)] = \
-              self.args.gamma * np.max([self.Qsa[(state_hash, action)] for action, valid in enumerate(self.valid_moves_for_s[state_hash]) if valid])
+            self.Qsa[(state.previous_state.hash, state.production_action)] = (
+                self.args.gamma
+                * np.max(
+                    [
+                        self.Qsa[(state_hash, action)]
+                        for action, valid in enumerate(
+                            self.valid_moves_for_s[state_hash]
+                        )
+                        if valid
+                    ]
+                )
+            )
 
-            self.not_completely_explored_moves_for_s[state.previous_state.hash][state.production_action] \
-                &= not_subtree_completed
+            self.not_completely_explored_moves_for_s[state.previous_state.hash][
+                state.production_action
+            ] &= not_subtree_completed
         return mct_return, not_subtree_completed
 
-    def rollout_for_valid_moves(self, a, state_hash,
-                                state, path):
+    def rollout_for_valid_moves(self, a, state_hash, state, path):
         # explore new part of the tree
         value = 0
-        next_state, reward = self.game.getNextState(
-            state=state,
-            action=a
-        )
+        next_state, reward = self.game.getNextState(state=state, action=a)
         next_state_hash = self.game.getHash(state=next_state)
         if next_state_hash in self.states:
             # We are visiting a state we already explored before
@@ -250,7 +271,7 @@ class AmEx_MCTS(ClassicMCTS):
 
             if previous_state is not None:
                 # start node has previous state
-                if next_state.done :
+                if next_state.done:
                     # If the state is done, we only want to use the archived  reward.
                     return 0
                 else:
@@ -277,14 +298,12 @@ class AmEx_MCTS(ClassicMCTS):
             self.valid_moves_for_s[next_state_hash] = self.game.getLegalMoves(
                 state=next_state
             ).astype(bool)
-            self.not_completely_explored_moves_for_s[next_state_hash] =\
-                self.game.getLegalMoves(
-                state=next_state
-            ).astype(bool)
+            self.not_completely_explored_moves_for_s[next_state_hash] = (
+                self.game.getLegalMoves(state=next_state).astype(bool)
+            )
             if self.args.depth_first_search:
                 value_search, not_subtree_completed = self._search(
-                    state=next_state,
-                    path=path + (a,)
+                    state=next_state, path=path + (a,)
                 )
                 if not_subtree_completed:
                     if self.args.risk_seeking:
@@ -295,7 +314,9 @@ class AmEx_MCTS(ClassicMCTS):
                     value = value_search
         else:
             # next state is done
-            self.not_completely_explored_moves_for_s[next_state_hash] = [False] * self.action_size
+            self.not_completely_explored_moves_for_s[next_state_hash] = [
+                False
+            ] * self.action_size
             self.not_completely_explored_moves_for_s[state_hash][a] = False
             self.times_s_was_visited[next_state_hash] += 1  # debug value
             if reward >= 0.999:
@@ -303,16 +324,19 @@ class AmEx_MCTS(ClassicMCTS):
         return value
 
     def backup(self, a, state_hash, value, a_max):
-        mct_return = self.Rsa[(state_hash, a)] + \
-                     self.args.gamma * value  # (Discounted) Value of the current node
+        mct_return = (
+            self.Rsa[(state_hash, a)] + self.args.gamma * value
+        )  # (Discounted) Value of the current node
         if (state_hash, a) in self.Qsa:
             if self.args.risk_seeking:
                 self.Qsa[(state_hash, a)] = max(self.Qsa[(state_hash, a)], mct_return)
             else:
                 # update path for a_select
-                self.Qsa[(state_hash, a)] = (self.times_edge_s_a_was_visited[(state_hash, a)] *
-                                             self.Qsa[(state_hash, a)] + mct_return) / \
-                                   (self.times_edge_s_a_was_visited[(state_hash, a)] + 1)
+                self.Qsa[(state_hash, a)] = (
+                    self.times_edge_s_a_was_visited[(state_hash, a)]
+                    * self.Qsa[(state_hash, a)]
+                    + mct_return
+                ) / (self.times_edge_s_a_was_visited[(state_hash, a)] + 1)
 
                 # but do not backprop worse values than what would've been done
                 if a != a_max and mct_return < self.Qsa[(state_hash, a_max)]:
@@ -330,7 +354,7 @@ class AmEx_MCTS(ClassicMCTS):
         return mct_return
 
     def select_action_with_highest_upper_confidence_bound(self, state_hash):
-        q_values =[]
+        q_values = []
         explorations = []
         for a in range(self.action_size):
             q_value, exploration = self.compute_ucb(state_hash, a)
@@ -341,19 +365,21 @@ class AmEx_MCTS(ClassicMCTS):
         confidence_bounds = q_values + explorations
 
         # Get masked argmax.
-        a = tie_breaking_argmax(np.where(self.not_completely_explored_moves_for_s[state_hash],
-                                confidence_bounds,
-                                -np.inf))  # never choose these actions!
+        a = tie_breaking_argmax(
+            np.where(
+                self.not_completely_explored_moves_for_s[state_hash],
+                confidence_bounds,
+                -np.inf,
+            )
+        )  # never choose these actions!
         # Get valid arg_max
-        a_max = tie_breaking_argmax(np.where(self.valid_moves_for_s[state_hash],
-                                    confidence_bounds,
-                                    -np.inf))  # never choose these actions!
+        a_max = tie_breaking_argmax(
+            np.where(self.valid_moves_for_s[state_hash], confidence_bounds, -np.inf)
+        )  # never choose these actions!
         # for the unlikely event that a and a_max should be the same,
         # but because of the tie_breaking_argmax are not we have to check if
         # a_max really already exist
         if not (state_hash, a_max) in self.Qsa:
             a = a_max
-
-
 
         return a, a_max

@@ -3,8 +3,12 @@ import tensorflow as tf
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+
+
 def categorical_crossentropy_loss(real, pred):
-    cross_entropy = tf.keras.losses.CategoricalCrossentropy(from_logits=False, reduction='none')
+    cross_entropy = tf.keras.losses.CategoricalCrossentropy(
+        from_logits=False, reduction="none"
+    )
     loss = cross_entropy(y_true=real, y_pred=pred)
     loss = tf.reduce_mean(loss)
     return loss
@@ -17,13 +21,15 @@ def kl_divergence(real, pred):
 
 
 def mean_square_error_loss_function(real, pred):
-    mean_square = tf.keras.losses.MeanSquaredError(name='mean_squared_error')
+    mean_square = tf.keras.losses.MeanSquaredError(name="mean_squared_error")
     loss = mean_square(y_true=real, y_pred=pred)
     return loss
 
 
 def mean_abs_error(real, pred):
-    mean_abs = tf.keras.losses.MeanAbsoluteError(reduction=tf.keras.losses.Reduction.SUM)
+    mean_abs = tf.keras.losses.MeanAbsoluteError(
+        reduction=tf.keras.losses.Reduction.SUM
+    )
     loss = mean_abs(y_true=real, y_pred=pred)
     return loss
 
@@ -62,35 +68,46 @@ def shape(x):
     return tuple(dynamic[i] if s is None else s for i, s in enumerate(static))
 
 
-
 class NT_Xent(tf.keras.layers.Layer):
-    """ Normalized temperature-scaled CrossEntropy loss [1]
-        [1] T. Chen, S. Kornblith, M. Norouzi, and G. Hinton, “A simple framework for contrastive learning of visual representations,” arXiv. 2020, Accessed: Jan. 15, 2021. [Online]. Available: https://github.com/google-research/simclr.
-        From https://github.com/gabriel-vanzandycke/tf_layers/blob/main/tf_layers/layers.py
-          """
+    """Normalized temperature-scaled CrossEntropy loss [1]
+    [1] T. Chen, S. Kornblith, M. Norouzi, and G. Hinton, “A simple framework for contrastive learning of visual representations,” arXiv. 2020, Accessed: Jan. 15, 2021. [Online]. Available: https://github.com/google-research/simclr.
+    From https://github.com/gabriel-vanzandycke/tf_layers/blob/main/tf_layers/layers.py
+    """
+
     def __init__(self, args, **kwargs):
         self.args = args
         super().__init__(**kwargs)
         # closer to -1 indicate greater similarity, 0 indicates orthogonality, The values closer to 1 indicate greater dissimilarity
-        self.similarity = tf.keras.losses.CosineSimilarity(axis=-1, reduction=tf.keras.losses.Reduction.NONE)
-        #self.criterion = tf.keras.losses.MeanSquaredError()
+        self.similarity = tf.keras.losses.CosineSimilarity(
+            axis=-1, reduction=tf.keras.losses.Reduction.NONE
+        )
+        # self.criterion = tf.keras.losses.MeanSquaredError()
         self.criterion = tf.keras.losses.BinaryCrossentropy(from_logits=False)
         self.mask_for_same_dataset = np.zeros(
-            shape=(self.args.batch_size_training*2, self.args.batch_size_training*2),
-            dtype=np.bool_
+            shape=(
+                self.args.batch_size_training * 2,
+                self.args.batch_size_training * 2,
+            ),
+            dtype=np.bool_,
         )
         for i in range(self.args.batch_size_training):
             self.mask_for_same_dataset[2 * i, 2 * i + 1] = True
 
-        self.mask_contrast_dataset = np.triu(np.ones(
-            shape=(self.args.batch_size_training*2, self.args.batch_size_training*2),
-            dtype=np.bool_), k=1)
+        self.mask_contrast_dataset = np.triu(
+            np.ones(
+                shape=(
+                    self.args.batch_size_training * 2,
+                    self.args.batch_size_training * 2,
+                ),
+                dtype=np.bool_,
+            ),
+            k=1,
+        )
         self.mask_contrast_dataset[self.mask_for_same_dataset] = False
 
-
     def __call__(self, zizj, target_dataset_encoding=None, tau=None):
-        """ zizj is [B,N] tensor with order z_i1 z_j1 z_i2 z_j2 z_i3 z_j3 ...
-            batch_size is twice the original batch_size
+        """zizj is [B,N] tensor with order z_i1 z_j1 z_i2 z_j2 z_i3 z_j3 ...
+        batch_size is twice the original batch_size
         """
         if not target_dataset_encoding is None:
             if tf.executing_eagerly():
@@ -102,24 +119,21 @@ class NT_Xent(tf.keras.layers.Layer):
 
             contrast_loss = self.criterion(
                 target_np[self.mask_contrast_dataset],
-                sim_activation[self.mask_contrast_dataset]
+                sim_activation[self.mask_contrast_dataset],
             )
             similarity_loss = self.criterion(
                 target_np[self.mask_for_same_dataset],
-                sim_activation[self.mask_for_same_dataset]
+                sim_activation[self.mask_for_same_dataset],
             )
 
             sim_loss = similarity_loss + 0.1 * contrast_loss
             return sim_loss
 
-    def pretty_print_matrix (self, df, np_array):
+    def pretty_print_matrix(self, df, np_array):
         chart = plt.figure(figsize=(16, 8))
 
-        new_df = pd.DataFrame(np_array, index=df.index, columns=df.index )
+        new_df = pd.DataFrame(np_array, index=df.index, columns=df.index)
         sns.heatmap(new_df, annot=True)
         plt.setp(plt.gca.xaxis.get_majorticklabels(), rotation=-45, ha="left")
-        #plt.xticks(rotation=45)
+        # plt.xticks(rotation=45)
         plt.show()
-
-
-

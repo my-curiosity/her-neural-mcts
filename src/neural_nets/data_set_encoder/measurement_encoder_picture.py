@@ -1,6 +1,8 @@
 import tensorflow as tf
 import numpy as np
-from src.neural_nets.data_set_encoder.measurement_encoder_dummy import MeasurementEncoderDummy
+from src.neural_nets.data_set_encoder.measurement_encoder_dummy import (
+    MeasurementEncoderDummy,
+)
 
 
 # based on  https://github.com/OATML/non-parametric-transformers Kossen et al., “Self-Attention Between Datapoints.” and
@@ -10,30 +12,47 @@ class MeasurementEncoderPicture(MeasurementEncoderDummy):
         super(MeasurementEncoderPicture, self).__init__(*args, **kwargs)
         self.kwargs = kwargs
 
-        self.conv_0 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu',
-                                             padding='same', strides=2,
-                                             name="Convolution_0_Encoder_Picture")
-        self.conv_1 = tf.keras.layers.Conv2D(32, (3, 3), activation='relu',
-                                             padding='same', strides=2,
-                                             name="Convolution_1_Encoder_Picture"
-                                             )
-        self.conv_2 = tf.keras.layers.Conv2D(16, (3, 3), activation='relu',
-                                             padding='same', strides=1,
-                                             name="Convolution_2_Encoder_Picture"
-                                             )
-        self.conv_3 = tf.keras.layers.Conv2D(8, (3, 3), activation='relu',
-                                             padding='same', strides=1,
-                                             name="Convolution_3_Encoder_Picture"
-                                             )
-        self.last_layer_0 = tf.keras.layers.Dense(units=128, activation='gelu',
-                                                  name='Dense_0_Encoder_Picture'
-                                                  )
-        self.last_layer_1 = tf.keras.layers.Dense(units=64, activation='gelu',
-                                                  name='Dense_1_Encoder_Picture'
-                                                  )
-        self.last_layer_2 = tf.keras.layers.Dense(units=32,
-                                                  name='Dense_2_Encoder_Picture'
-                                                  )
+        self.conv_0 = tf.keras.layers.Conv2D(
+            64,
+            (3, 3),
+            activation="relu",
+            padding="same",
+            strides=2,
+            name="Convolution_0_Encoder_Picture",
+        )
+        self.conv_1 = tf.keras.layers.Conv2D(
+            32,
+            (3, 3),
+            activation="relu",
+            padding="same",
+            strides=2,
+            name="Convolution_1_Encoder_Picture",
+        )
+        self.conv_2 = tf.keras.layers.Conv2D(
+            16,
+            (3, 3),
+            activation="relu",
+            padding="same",
+            strides=1,
+            name="Convolution_2_Encoder_Picture",
+        )
+        self.conv_3 = tf.keras.layers.Conv2D(
+            8,
+            (3, 3),
+            activation="relu",
+            padding="same",
+            strides=1,
+            name="Convolution_3_Encoder_Picture",
+        )
+        self.last_layer_0 = tf.keras.layers.Dense(
+            units=128, activation="gelu", name="Dense_0_Encoder_Picture"
+        )
+        self.last_layer_1 = tf.keras.layers.Dense(
+            units=64, activation="gelu", name="Dense_1_Encoder_Picture"
+        )
+        self.last_layer_2 = tf.keras.layers.Dense(
+            units=32, name="Dense_2_Encoder_Picture"
+        )
 
     def __call__(self, x, *args, **kwargs):
         x_picture = table_to_picture(x, bins=14)
@@ -45,7 +64,9 @@ class MeasurementEncoderPicture(MeasurementEncoderDummy):
         X_flat_0 = self.last_layer_0(X_flat)
         X_flat_1 = self.last_layer_1(X_flat_0)
         X_flat_2 = self.last_layer_2(X_flat_1)
-        norm = tf.linalg.norm(X_flat_2, ord='euclidean', name=None, keepdims=True, axis=-1)
+        norm = tf.linalg.norm(
+            X_flat_2, ord="euclidean", name=None, keepdims=True, axis=-1
+        )
         out = X_flat_2 / norm
         return out
 
@@ -57,50 +78,49 @@ def table_to_picture(tensor, bins):
         for c in range(tensor.shape[-1] - 1):
             x = tensor[b, :, c]
             y = tensor[b, :, -1]
-            histogram = histogram2d(x=x,
-                                    y=y,
-                                    nbins=bins,
-                                    value_range=[[tf.reduce_min(x), tf.reduce_max(x) + 1e-6],[-1., 1.]],
-                                    weights=None
-                                    )
+            histogram = histogram2d(
+                x=x,
+                y=y,
+                nbins=bins,
+                value_range=[[tf.reduce_min(x), tf.reduce_max(x) + 1e-6], [-1.0, 1.0]],
+                weights=None,
+            )
             picture_list.append(tf.where(histogram >= 1, np.float32(1), np.float32(0)))
-        batch_list.append(tf.stack(picture_list, axis=-1, name='stack_plots'))
-    picture_tensor = tf.stack(batch_list, axis=0, name='stack_datasets')
+        batch_list.append(tf.stack(picture_list, axis=-1, name="stack_plots"))
+    picture_tensor = tf.stack(batch_list, axis=0, name="stack_datasets")
     return picture_tensor
 
 
-def histogram2d(x, y,
-                value_range,
-                nbins=100,
-                weights=None,
-                bin_dtype=tf.dtypes.float32):
+def histogram2d(
+    x, y, value_range, nbins=100, weights=None, bin_dtype=tf.dtypes.float32
+):
     """
-    Bins x, y coordinates of points onto simple square 2d histogram
+      Bins x, y coordinates of points onto simple square 2d histogram
 
-    Given the tensor x and y:
-    x: x coordinates of points
-    y: y coordinates of points
-    this operation returns a rank 2 `Tensor`
-    representing the indices of a histogram into which each element
-    of `values` would be binned. The bins are equal width and
-    determined by the arguments `value_range` and `nbins`.
+      Given the tensor x and y:
+      x: x coordinates of points
+      y: y coordinates of points
+      this operation returns a rank 2 `Tensor`
+      representing the indices of a histogram into which each element
+      of `values` would be binned. The bins are equal width and
+      determined by the arguments `value_range` and `nbins`.
 
 
-  Args:
-    x: Numeric `Tensor`.
-    y: Numeric `Tensor`.
-    value_range[0] lims for x
-    value_range[1] lims for y
+    Args:
+      x: Numeric `Tensor`.
+      y: Numeric `Tensor`.
+      value_range[0] lims for x
+      value_range[1] lims for y
 
-    nbins:  Scalar `int32 Tensor`.  Number of histogram bins.
-    weights: The value to scale
-    dtype:  dtype for returned histogram.
+      nbins:  Scalar `int32 Tensor`.  Number of histogram bins.
+      weights: The value to scale
+      dtype:  dtype for returned histogram.
 
-  Example:
-  N = 1000
-  xs =  tf.random.normal([N])
-  ys =  tf.random.normal([N])
-  get2dHistogram(xs, ys, ([-5.0, 5.0], [-5.0, 5.0]),  50)
+    Example:
+    N = 1000
+    xs =  tf.random.normal([N])
+    ys =  tf.random.normal([N])
+    get2dHistogram(xs, ys, ([-5.0, 5.0], [-5.0, 5.0]),  50)
 
 
     """
@@ -108,9 +128,13 @@ def histogram2d(x, y,
     y_range = value_range[1]
 
     if weights is None:
-        hist_bins = tf.histogram_fixed_width_bins(y, y_range, nbins=nbins, dtype=bin_dtype)
-        return tf.map_fn(lambda i: tf.histogram_fixed_width(x[hist_bins == i], x_range, nbins=nbins),
-                         tf.range(nbins))
+        hist_bins = tf.histogram_fixed_width_bins(
+            y, y_range, nbins=nbins, dtype=bin_dtype
+        )
+        return tf.map_fn(
+            lambda i: tf.histogram_fixed_width(x[hist_bins == i], x_range, nbins=nbins),
+            tf.range(nbins),
+        )
 
     x_bins = tf.histogram_fixed_width_bins(x, x_range, nbins=nbins, dtype=bin_dtype)
     y_bins = tf.histogram_fixed_width_bins(y, y_range, nbins=nbins, dtype=bin_dtype)

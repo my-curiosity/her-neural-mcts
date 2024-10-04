@@ -4,7 +4,9 @@ Main function of the codebase. This file is intended to call different parts of 
 To add new games to the pipeline, add your string_query-class constructor to the 'game_from_name' function.
 https://github.com/kaesve/muzero
 """
+
 import warnings
+
 warnings.filterwarnings("ignore")
 import random
 from datetime import datetime
@@ -22,20 +24,26 @@ from src.utils.copy_weights import copy_dataset_encoder_weights_from_pretrained_
 from src.utils.get_grammar import get_grammar_from_string
 from src.generate_datasets.grammars import get_grammars
 from sys import argv
+
+
 def run():
     args = Config.arguments_parser()
     args.ROOT_DIR = ROOT_DIR
     time_string = datetime.now().strftime("%Y-%m-%d_%H.%M.%S")
     unique_dir = f"{time_string}_{args.seed}"
-    wandb_path = ROOT_DIR / '.wandb' /  args.experiment_name / \
-                 f"{unique_dir}"
+    wandb_path = ROOT_DIR / ".wandb" / args.experiment_name / f"{unique_dir}"
     wandb_path.mkdir(parents=True, exist_ok=True)
-    wandb.init(entity="my_cur10s1ty-tu-darmstadt", config=args.__dict__,
-               project="her-neural-mcts",
-               sync_tensorboard=True, tensorboard=True,
-               dir=wandb_path, mode=args.wandb,
-               name=args.experiment_name)
-    wandb.log({'Job_ID': args.job_id})
+    wandb.init(
+        entity="my_cur10s1ty-tu-darmstadt",
+        config=args.__dict__,
+        project="her-neural-mcts",
+        sync_tensorboard=True,
+        tensorboard=True,
+        dir=wandb_path,
+        mode=args.wandb,
+        name=args.experiment_name,
+    )
+    wandb.log({"Job_ID": args.job_id})
 
     np.random.seed(args.seed)
     tf.random.set_seed(args.seed)
@@ -43,48 +51,30 @@ def run():
 
     # Set up tensorflow backend.
     if int(args.gpu) >= 0:
-        device = tf.DeviceSpec(device_type='GPU', device_index=int(args.gpu))
+        device = tf.DeviceSpec(device_type="GPU", device_index=int(args.gpu))
     else:
-        device = tf.DeviceSpec(device_type='CPU', device_index=0)
+        device = tf.DeviceSpec(device_type="CPU", device_index=0)
 
     grammar = get_grammar_from_string(
-        string=get_grammars(args.grammar_search),
-        args=args
+        string=get_grammars(args.grammar_search), args=args
     )
-
 
     # preprocessor = get_preprocessor_class(args=args)
     # reader_train = preprocessor(args=args, train_test_or_val='train')
     # iter_train = reader_train.get_datasets()
-    game = FindEquationGame(
-        grammar,
-        args,
-        train_test_or_val='train'
-    )
+    game = FindEquationGame(grammar, args, train_test_or_val="train")
 
-    game_test = FindEquationGame(
-        grammar,
-        args,
-        train_test_or_val='test'
-    )
+    game_test = FindEquationGame(grammar, args, train_test_or_val="test")
 
-    learnA0(g=game,
-            args=args,
-            run_name=args.experiment_name,
-            game_test=game_test
-            )
-    wandb.log(
-        {
-            f"sucessful": True
-        }
-    )
+    learnA0(g=game, args=args, run_name=args.experiment_name, game_test=game_test)
+    wandb.log({f"sucessful": True})
 
 
 def learnA0(g, args, run_name: str, game_test) -> None:
     """
     Train an AlphaZero agent on the given environment with the specified configuration. If specified within the
     configuration file, the function will load in a previous model along with previously generated data.
-    :param game_test: 
+    :param game_test:
     :param args:
     :param g: Game Instance of a Game class that implements environment logic. Train agent on this environment.
     :param run_name: str Run name to store data by and annotate results.
@@ -92,27 +82,19 @@ def learnA0(g, args, run_name: str, game_test) -> None:
     print("Testing:", ", ".join(run_name.split("_")))
 
     # Extract neural network and algorithm arguments separately
-    rule_predictor_train = RulePredictorSkeleton(
-        args=args,
-        reader_train=g.reader
-    )
+    rule_predictor_train = RulePredictorSkeleton(args=args, reader_train=g.reader)
     rule_predictor_test = RulePredictorSkeleton(
-        args=args,
-        reader_train=game_test.reader
+        args=args, reader_train=game_test.reader
     )
     checkpoint_train, manager_train = load_pretrained_net(
-        args = args,
-        rule_predictor=rule_predictor_train,
-        game = g
+        args=args, rule_predictor=rule_predictor_train, game=g
     )
     checkpoint_test, _ = load_pretrained_net(
-        args=args,
-        rule_predictor=rule_predictor_test,
-        game=g
+        args=args, rule_predictor=rule_predictor_test, game=g
     )
-    if args.MCTS_engine == 'Endgame':
+    if args.MCTS_engine == "Endgame":
         search_engine = AmEx_MCTS
-    elif args.MCTS_engine == 'Normal':
+    elif args.MCTS_engine == "Normal":
         search_engine = ClassicMCTS
     else:
         raise AssertionError(f"Engine: {args.MCTS_engine} not defined!")
@@ -127,7 +109,7 @@ def learnA0(g, args, run_name: str, game_test) -> None:
         run_name=run_name,
         checkpoint_train=checkpoint_train,
         checkpoint_manager=manager_train,
-        checkpoint_test=checkpoint_test
+        checkpoint_test=checkpoint_test,
     )
 
     c.learn()
@@ -136,48 +118,46 @@ def learnA0(g, args, run_name: str, game_test) -> None:
 def load_pretrained_net(args, rule_predictor, game):
     experiment_name = f"{args.experiment_name}/{args.seed}"
     net = rule_predictor.net
-    checkpoint_path_current_model = ROOT_DIR / 'saved_models' / args.data_path / \
-                                 experiment_name
+    checkpoint_path_current_model = (
+        ROOT_DIR / "saved_models" / args.data_path / experiment_name
+    )
     print(f"Model will be saved at {checkpoint_path_current_model}")
 
-    checkpoint_current_model = tf.train.Checkpoint(
-        step=tf.Variable(1),
-        net=net
-    )
+    checkpoint_current_model = tf.train.Checkpoint(step=tf.Variable(1), net=net)
     manager_train = tf.train.CheckpointManager(
-        max_to_keep = 30,
+        max_to_keep=30,
         step_counter=checkpoint_current_model.step,
         checkpoint=checkpoint_current_model,
-        directory=str(checkpoint_path_current_model / 'tf_ckpts'),
-        checkpoint_interval=10
+        directory=str(checkpoint_path_current_model / "tf_ckpts"),
+        checkpoint_interval=10,
     )
     initialize_net(args, checkpoint_current_model, game)
 
     if len(args.path_to_complete_model) > 0:
         restore_path = ROOT_DIR / args.path_to_complete_model
-        if restore_path.suffix != '':
-            raise RuntimeError(f"Your path to the complete model has an suffix: {restore_path.suffix} \n "
-                                 f"the restore operation wants to have the path in the form *path_to_checkpoint/tf_chpts/ckpt-x* \n"
-                                 f" Most likely you add the path to the index file \n"
-                                 f"Your path is: {restore_path}" )
+        if restore_path.suffix != "":
+            raise RuntimeError(
+                f"Your path to the complete model has an suffix: {restore_path.suffix} \n "
+                f"the restore operation wants to have the path in the form *path_to_checkpoint/tf_chpts/ckpt-x* \n"
+                f" Most likely you add the path to the index file \n"
+                f"Your path is: {restore_path}"
+            )
 
         checkpoint_current_model.restore(f"{restore_path}")
         print("Restored from {}".format(f"{ROOT_DIR / args.path_to_complete_model }"))
 
     elif manager_train.latest_checkpoint:
-        checkpoint_current_model.restore(manager_train.latest_checkpoint).assert_consumed()
+        checkpoint_current_model.restore(
+            manager_train.latest_checkpoint
+        ).assert_consumed()
 
         print("Restored from {}".format(manager_train.latest_checkpoint))
     else:
         checkpoint_current_model.restore(manager_train.latest_checkpoint)
         print("Initializing from scratch.")
 
-
-
     copy_dataset_encoder_weights_from_pretrained_agent(
-        args=args,
-        checkpoint_current_model=checkpoint_current_model,
-        game=game
+        args=args, checkpoint_current_model=checkpoint_current_model, game=game
     )
 
     return checkpoint_current_model, manager_train
@@ -187,18 +167,18 @@ def initialize_net(args, checkpoint_current_model, game):
     iter = game.reader.get_datasets()
     net = checkpoint_current_model.net
     data_dict = next(iter)
-    prepared_syntax_tree = [np.zeros(
-        shape=( args.max_tokens_equation),
-        dtype=np.float32)]
+    prepared_syntax_tree = [
+        np.zeros(shape=(args.max_tokens_equation), dtype=np.float32)
+    ]
     net(
         input_encoder_tree=prepared_syntax_tree,
-        input_encoder_measurement=[data_dict['data_frame']]
+        input_encoder_measurement=[data_dict["data_frame"]],
     )
     pass
 
 
 def get_run_name(config_name: str, architecture: str, game_name: str) -> str:
-    """ Macro function to wrap various ModelConfig properties into a run name. """
+    """Macro function to wrap various ModelConfig properties into a run name."""
     time = datetime.now().strftime("%Y%m%d-%H%M%S")
     return f"{config_name}_{architecture}_{game_name}_{time}"
 

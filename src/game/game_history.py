@@ -1,6 +1,7 @@
 """
 Defines the functionality for prioritized sampling, the replay-buffer, min-max normalization, and parameter scheduling.
 """
+
 from __future__ import annotations
 from dataclasses import dataclass, field
 import typing
@@ -14,14 +15,25 @@ class GameHistory:
     """
     Data container for keeping track of game trajectories.
     """
-    observations: list = field(default_factory=list)        # o_t: State Observations
-    players: list = field(default_factory=list)             # p_t: Current player
-    probabilities: list = field(default_factory=list)       # pi_t: Probability vector of MCTS for the action
-    MCTS_value_estimation: list = field(default_factory=list)      # v_t: MCTS value estimation
-    rewards: list = field(default_factory=list)             # u_t+1: Observed reward after performing a_t+1
-    actions: list = field(default_factory=list)             # a_t+1: Action leading to transition s_t -> s_t+1
-    observed_returns: list = field(default_factory=list)    # z_t: Training targets for the value function
-    terminated: bool = False                                # Whether the environment has terminated
+
+    observations: list = field(default_factory=list)  # o_t: State Observations
+    players: list = field(default_factory=list)  # p_t: Current player
+    probabilities: list = field(
+        default_factory=list
+    )  # pi_t: Probability vector of MCTS for the action
+    MCTS_value_estimation: list = field(
+        default_factory=list
+    )  # v_t: MCTS value estimation
+    rewards: list = field(
+        default_factory=list
+    )  # u_t+1: Observed reward after performing a_t+1
+    actions: list = field(
+        default_factory=list
+    )  # a_t+1: Action leading to transition s_t -> s_t+1
+    observed_returns: list = field(
+        default_factory=list
+    )  # z_t: Training targets for the value function
+    terminated: bool = False  # Whether the environment has terminated
 
     def __len__(self) -> int:
         """Get length of current stored trajectory"""
@@ -35,12 +47,14 @@ class GameHistory:
         self.rewards.append(r)
         self.MCTS_value_estimation.append(v)
 
-    def terminate(self, formula_started_from='', found_equation='') -> None:
+    def terminate(self, formula_started_from="", found_equation="") -> None:
         """Take a snapshot of the terminal state of the environment"""
         # self.probabilities.append(np.zeros_like(self.probabilities[-1]))
         # self.rewards.append(0)         # Reward past u_T
         # self.MCTS_value_estimation.append(0)
-        self.formula_started_from = formula_started_from# Bootstrap: Future possible reward = 0
+        self.formula_started_from = (
+            formula_started_from  # Bootstrap: Future possible reward = 0
+        )
         self.found_equation = found_equation
 
         self.terminated = True
@@ -50,22 +64,35 @@ class GameHistory:
         all([x.clear() for x in vars(self).values() if type(x) == list])
         self.terminated = False
 
-    def compute_returns(self, args, gamma: float = 1, look_ahead: typing.Optional[int] = None) -> None:
+    def compute_returns(
+        self, args, gamma: float = 1, look_ahead: typing.Optional[int] = None
+    ) -> None:
         """Computes the n-step returns assuming that the last recorded snapshot was a terminal state
         :param args:
         """
         self.observed_returns = list()
         horizon = len(self.rewards)
         for t in range(len(self.rewards)):
-            discounted_rewards = [np.power(gamma, k - t) * self.rewards[k] for k in range(t, horizon)]
-            observed_return = sum(discounted_rewards) #+ bootstrap
-            if args.average_policy_if_wrong and self.rewards[-1] < args.minimum_reward + 0.1 :
-                self.probabilities[t][self.probabilities[t] > 0] = 1/np.count_nonzero(self.probabilities[t])
+            discounted_rewards = [
+                np.power(gamma, k - t) * self.rewards[k] for k in range(t, horizon)
+            ]
+            observed_return = sum(discounted_rewards)  # + bootstrap
+            if (
+                args.average_policy_if_wrong
+                and self.rewards[-1] < args.minimum_reward + 0.1
+            ):
+                self.probabilities[t][self.probabilities[t] > 0] = 1 / np.count_nonzero(
+                    self.probabilities[t]
+                )
             self.observed_returns.append(observed_return)
         return
 
-    def stackObservations(self, length: int, current_observation: typing.Optional[np.ndarray] = None,
-                          t: typing.Optional[int] = None) -> np.ndarray:  # TODO: rework function.
+    def stackObservations(
+        self,
+        length: int,
+        current_observation: typing.Optional[np.ndarray] = None,
+        t: typing.Optional[int] = None,
+    ) -> np.ndarray:  # TODO: rework function.
         """Stack the most recent 'length' elements from the observation list along the end of the observation axis"""
         if length <= 1:
             if current_observation is not None:
@@ -89,19 +116,27 @@ class GameHistory:
         # Trajectories sampled beyond the end of the game are simply repeats of the terminal observation.
         if t > len(self):
             terminal_repeat = [current_observation] * (t - len(self))
-            trajectory = self.observations[:t][-(length - len(terminal_repeat)):] + terminal_repeat
+            trajectory = (
+                self.observations[:t][-(length - len(terminal_repeat)) :]
+                + terminal_repeat
+            )
         else:
-            trajectory = self.observations[:t][-(length - 1):] + [current_observation]
+            trajectory = self.observations[:t][-(length - 1) :] + [current_observation]
 
         if len(trajectory) < length:
-            prefix = [np.zeros_like(current_observation) for _ in range(length - len(trajectory))]
+            prefix = [
+                np.zeros_like(current_observation)
+                for _ in range(length - len(trajectory))
+            ]
             trajectory = prefix + trajectory
 
-        return np.concatenate(trajectory, axis=-1)  # Concatenate along channel dimension.
+        return np.concatenate(
+            trajectory, axis=-1
+        )  # Concatenate along channel dimension.
 
     @staticmethod
     def print_statistics(histories: typing.List[typing.List[GameHistory]]) -> None:
-        """ Print generic statistics over a nested list of GameHistories (the entire Replay-Buffer). """
+        """Print generic statistics over a nested list of GameHistories (the entire Replay-Buffer)."""
         flat = GameHistory.flatten(histories)
 
         n_self_play_iterations = len(histories)
@@ -109,20 +144,32 @@ class GameHistory:
         n_samples = sum([len(x) for x in flat])
 
         print("=== Replay Buffer Statistics ===")
-        print(f"Replay buffer filled with data from {n_self_play_iterations} self play iterations")
+        print(
+            f"Replay buffer filled with data from {n_self_play_iterations} self play iterations"
+        )
         for history in flat:
-            print(f"searched equation: {history.searched_equation},  started from : {history.formula_started_from},  found equation: {history.found_equation}")
-        print(f"In total {n_episodes} episodes have been played amounting to {n_samples} data samples")
-
+            print(
+                f"searched equation: {history.searched_equation},  started from : {history.formula_started_from},  found equation: {history.found_equation}"
+            )
+        print(
+            f"In total {n_episodes} episodes have been played amounting to {n_samples} data samples"
+        )
 
     @staticmethod
-    def flatten(nested_histories: typing.List[typing.List[GameHistory]]) -> typing.List[GameHistory]:
-        """ Flatten doubly nested list to a normal list of objects. """
+    def flatten(
+        nested_histories: typing.List[typing.List[GameHistory]],
+    ) -> typing.List[GameHistory]:
+        """Flatten doubly nested list to a normal list of objects."""
         return [subitem for item in nested_histories for subitem in item]
 
 
-def sample_batch(list_of_histories: typing.List[GameHistory], n: int, prioritize: bool = False, alpha: float = 1.0,
-                 beta: float = 1.0) -> typing.Tuple[typing.List[typing.Tuple[int, int]], typing.List[float]]:
+def sample_batch(
+    list_of_histories: typing.List[GameHistory],
+    n: int,
+    prioritize: bool = False,
+    alpha: float = 1.0,
+    beta: float = 1.0,
+) -> typing.Tuple[typing.List[typing.Tuple[int, int]], typing.List[float]]:
     """
     Generate a sample specification from the list of GameHistory object using uniform or prioritized sampling.
     Along with the generated indices, for each sample/ index a scalar is returned for the loss function during
@@ -149,14 +196,23 @@ def sample_batch(list_of_histories: typing.List[GameHistory], n: int, prioritize
              within list_of_histories is chosen and the second index specifies the time point within that GameHistory.
              List of scalars containing either the Importance Sampling ratio or 1 / N to scale the network loss with.
     """
-    lengths = list(map(len, list_of_histories))   # Map the trajectory length of each Game
+    lengths = list(
+        map(len, list_of_histories)
+    )  # Map the trajectory length of each Game
 
-    sampling_probability = None                   # None defaults to uniform in np.random.choice
-    sample_weight = np.ones(np.sum(lengths))      # 1 / N. Uniform weight update strength over batch.
+    sampling_probability = None  # None defaults to uniform in np.random.choice
+    sample_weight = np.ones(
+        np.sum(lengths)
+    )  # 1 / N. Uniform weight update strength over batch.
 
     if prioritize or alpha == 0:
-        errors = np.array([np.abs(h.MCTS_value_estimation[i] - h.observed_returns[i])
-                           for h in list_of_histories for i in range(len(h))])
+        errors = np.array(
+            [
+                np.abs(h.MCTS_value_estimation[i] - h.observed_returns[i])
+                for h in list_of_histories
+                for i in range(len(h))
+            ]
+        )
 
         mass = np.power(errors, alpha)
         sampling_probability = mass / np.sum(mass)
@@ -165,14 +221,18 @@ def sample_batch(list_of_histories: typing.List[GameHistory], n: int, prioritize
         sample_weight = np.power(n * sampling_probability, beta)
 
     # Sample with prioritized / uniform probabilities sample indices over the flattened list of GameHistory objects.
-    flat_indices = np.random.choice(a=np.sum(lengths), size=n, replace=(n > np.sum(lengths)), p=sampling_probability)
+    flat_indices = np.random.choice(
+        a=np.sum(lengths), size=n, replace=(n > np.sum(lengths)), p=sampling_probability
+    )
 
     # Map the flat indices to the correct histories and history indices.
     history_index_borders = np.cumsum(lengths)
     history_indices = [(np.sum(i >= history_index_borders), i) for i in flat_indices]
 
     # Of the form [(history_i, t), ...] \equiv history_it
-    sample_coordinates = [(h_i, i - np.r_[0, history_index_borders][h_i]) for h_i, i in history_indices]
+    sample_coordinates = [
+        (h_i, i - np.r_[0, history_index_borders][h_i]) for h_i, i in history_indices
+    ]
     # Extract the corresponding IS loss scalars for each sample (or simply N x 1 / N if non-prioritized)
     sample_weights = sample_weight[flat_indices]
 

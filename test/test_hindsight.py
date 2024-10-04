@@ -20,7 +20,9 @@ def get_empty_list(arg):
 
 class Test_Hindsightexperience_replay(unittest.TestCase):
     def setUp(self) -> None:
-        grammar_string = grammar_string = """
+        grammar_string = (
+            grammar_string
+        ) = """
                     S -> Constant [0.2]
                     S -> Variable [0.1]
                     S -> '+' S S [0.2]
@@ -45,7 +47,7 @@ class Test_Hindsightexperience_replay(unittest.TestCase):
 
         self.grammar = PCFG.fromstring(grammar_string)
 
-        class Namespace():
+        class Namespace:
             def __init__(self):
                 pass
 
@@ -59,16 +61,16 @@ class Test_Hindsightexperience_replay(unittest.TestCase):
         self.args.number_equations = 10
         self.args.num_calls_sampling = 10
         self.args.sample_with_noise = False
-        self.args.how_to_select_node_to_delete = 'random'
+        self.args.how_to_select_node_to_delete = "random"
 
-        self.args.precision = 'float32'
-        self.logger = get_log_obj(args=self.args, name='test_logger')
+        self.args.precision = "float32"
+        self.logger = get_log_obj(args=self.args, name="test_logger")
         self.args.logging_level = 40
-        self.args.equation_preprocess_class = 'PandasPreprocess'
+        self.args.equation_preprocess_class = "PandasPreprocess"
         self.args.max_len_datasets = 10
 
-        self.args.data_path = 'test/saved_object'
-        self.args.tree_representation = 'tree_structure'
+        self.args.data_path = "test/saved_object"
+        self.args.tree_representation = "tree_structure"
         self.args.max_tokens_equation = 64
         self.args.batch_size_loading = 1
         self.args.minimum_reward = -1
@@ -87,60 +89,78 @@ class Test_Hindsightexperience_replay(unittest.TestCase):
         random.seed(42)
         np.random.seed(0)
         dataset_true = np.array(
-            [[0.3, 6.],
-             [1.3777778, 6.],
-             [2.4555554, 6.],
-             [3.5333333, 6.],
-             [4.611111, 6.],
-             [5.688889, 6.],
-             [6.766667, 6.],
-             [7.8444443, 6.],
-             [8.922222, 6.],
-             [10., 6.], ])
-        tf.random.set_seed(
-            seed=42
+            [
+                [0.3, 6.0],
+                [1.3777778, 6.0],
+                [2.4555554, 6.0],
+                [3.5333333, 6.0],
+                [4.611111, 6.0],
+                [5.688889, 6.0],
+                [6.766667, 6.0],
+                [7.8444443, 6.0],
+                [8.922222, 6.0],
+                [10.0, 6.0],
+            ]
         )
+        tf.random.set_seed(seed=42)
         self.find_equation_game = FindEquationGame(
             grammar=self.grammar,
             args=self.args,
         )
         self.mcts = ClassicMCTS(
-            game=self.find_equation_game,
-            rule_predictor=None,
-            args=self.args)
-        self.game = FindEquationGame(
-            self.grammar,
-            self.args,
-            train_test_or_val='train'
+            game=self.find_equation_game, rule_predictor=None, args=self.args
         )
+        self.game = FindEquationGame(self.grammar, self.args, train_test_or_val="train")
 
         state_0 = self.find_equation_game.getInitialState()
-        state_0.observation['data_frame'] = pd.DataFrame(dataset_true, columns=['x_0', 'y'])
+        state_0.observation["data_frame"] = pd.DataFrame(
+            dataset_true, columns=["x_0", "y"]
+        )
         hash_0 = self.find_equation_game.getHash(state=state_0)
-        self.mcts.valid_moves_for_s[hash_0] = self.game.getLegalMoves(state_0).astype(bool)
+        self.mcts.valid_moves_for_s[hash_0] = self.game.getLegalMoves(state_0).astype(
+            bool
+        )
         state_0.residual_calculated = False
 
-        state_1, reward = self.find_equation_game.getNextState(state=state_0, action=4)  # '*' S S
+        state_1, reward = self.find_equation_game.getNextState(
+            state=state_0, action=4
+        )  # '*' S S
         hash_1 = self.find_equation_game.getHash(state=state_1)
-        self.mcts.valid_moves_for_s[hash_1] = self.game.getLegalMoves(state_1).astype(bool)
+        self.mcts.valid_moves_for_s[hash_1] = self.game.getLegalMoves(state_1).astype(
+            bool
+        )
         state_1.residual_calculated = False
 
-        state_2, reward = self.find_equation_game.getNextState(state=state_1, action=0)  # Constant
+        state_2, reward = self.find_equation_game.getNextState(
+            state=state_1, action=0
+        )  # Constant
         hash_2 = self.find_equation_game.getHash(state=state_2)
-        self.mcts.valid_moves_for_s[hash_2] = self.game.getLegalMoves(state_2).astype(bool)
+        self.mcts.valid_moves_for_s[hash_2] = self.game.getLegalMoves(state_2).astype(
+            bool
+        )
         state_2.residual_calculated = False
 
-        state_3, reward = self.find_equation_game.getNextState(state=state_2, action=8)  # c
+        state_3, reward = self.find_equation_game.getNextState(
+            state=state_2, action=8
+        )  # c
         hash_3 = self.find_equation_game.getHash(state=state_3)
-        self.mcts.valid_moves_for_s[hash_3] = self.game.getLegalMoves(state_3).astype(bool)
+        self.mcts.valid_moves_for_s[hash_3] = self.game.getLegalMoves(state_3).astype(
+            bool
+        )
         state_3.residual_calculated = False
 
-        state_4, reward = self.find_equation_game.getNextState(state=state_3, action=1)  # Variable
+        state_4, reward = self.find_equation_game.getNextState(
+            state=state_3, action=1
+        )  # Variable
         hash_4 = self.find_equation_game.getHash(state=state_4)
-        self.mcts.valid_moves_for_s[hash_4] = self.game.getLegalMoves(state_4).astype(bool)
+        self.mcts.valid_moves_for_s[hash_4] = self.game.getLegalMoves(state_4).astype(
+            bool
+        )
         state_4.residual_calculated = False
 
-        state_5, reward = self.find_equation_game.getNextState(state=state_4, action=14)  # x_0
+        state_5, reward = self.find_equation_game.getNextState(
+            state=state_4, action=14
+        )  # x_0
         hash_5 = self.find_equation_game.getHash(state=state_5)
         state_5.residual_calculated = False
 
@@ -149,82 +169,115 @@ class Test_Hindsightexperience_replay(unittest.TestCase):
             dataset_columns=self.find_equation_game.dataset_columns,
             grammar=self.grammar,
             args=self.args,
-            mcts=self.mcts
+            mcts=self.mcts,
         )
-        y_soll = dataset_true[:, 0] * state_5.syntax_tree.constants_in_tree['c_0']['value']
-        history_forward, history_backward = hindsight.create_hindsight_history(final_state=state_5)
-        np.testing.assert_almost_equal(y_soll, history_backward.observations[0]['data_frame']['y'], decimal=2)
-        np.testing.assert_almost_equal(y_soll, history_backward.observations[1]['data_frame']['y'], decimal=2)
-        np.testing.assert_almost_equal(y_soll, history_backward.observations[2]['data_frame']['y'], decimal=2)
-        np.testing.assert_almost_equal(y_soll, history_backward.observations[3]['data_frame']['y'], decimal=2)
-        np.testing.assert_almost_equal(y_soll, history_backward.observations[4]['data_frame']['y'], decimal=2)
+        y_soll = (
+            dataset_true[:, 0] * state_5.syntax_tree.constants_in_tree["c_0"]["value"]
+        )
+        history_forward, history_backward = hindsight.create_hindsight_history(
+            final_state=state_5
+        )
+        np.testing.assert_almost_equal(
+            y_soll, history_backward.observations[0]["data_frame"]["y"], decimal=2
+        )
+        np.testing.assert_almost_equal(
+            y_soll, history_backward.observations[1]["data_frame"]["y"], decimal=2
+        )
+        np.testing.assert_almost_equal(
+            y_soll, history_backward.observations[2]["data_frame"]["y"], decimal=2
+        )
+        np.testing.assert_almost_equal(
+            y_soll, history_backward.observations[3]["data_frame"]["y"], decimal=2
+        )
+        np.testing.assert_almost_equal(
+            y_soll, history_backward.observations[4]["data_frame"]["y"], decimal=2
+        )
 
     def test_hindsight_residual(self):
         random.seed(42)
         dataset_true = np.array(
-            [[0.3, 6.],
-             [1.3777778, 6.],
-             [2.4555554, 6.],
-             [3.5333333, 6.],
-             [4.611111, 6.],
-             [5.688889, 6.],
-             [6.766667, 6.],
-             [7.8444443, 6.],
-             [8.922222, 6.],
-             [10., 6.], ])
-        tf.random.set_seed(
-            seed=42
+            [
+                [0.3, 6.0],
+                [1.3777778, 6.0],
+                [2.4555554, 6.0],
+                [3.5333333, 6.0],
+                [4.611111, 6.0],
+                [5.688889, 6.0],
+                [6.766667, 6.0],
+                [7.8444443, 6.0],
+                [8.922222, 6.0],
+                [10.0, 6.0],
+            ]
         )
+        tf.random.set_seed(seed=42)
         self.find_equation_game = FindEquationGame(
             grammar=self.grammar,
             args=self.args,
         )
         self.mcts = ClassicMCTS(
-            game=self.find_equation_game,
-            rule_predictor=None,
-            args=self.args)
-        self.game = FindEquationGame(
-            self.grammar,
-            self.args,
-            train_test_or_val='train'
+            game=self.find_equation_game, rule_predictor=None, args=self.args
         )
+        self.game = FindEquationGame(self.grammar, self.args, train_test_or_val="train")
 
         state_0 = self.find_equation_game.getInitialState()
-        state_0.observation['data_frame'] = pd.DataFrame(dataset_true, columns=['x_0', 'y'])
+        state_0.observation["data_frame"] = pd.DataFrame(
+            dataset_true, columns=["x_0", "y"]
+        )
         hash_0 = self.find_equation_game.getHash(state=state_0)
-        self.mcts.valid_moves_for_s[hash_0] = self.game.getLegalMoves(state_0).astype(bool)
+        self.mcts.valid_moves_for_s[hash_0] = self.game.getLegalMoves(state_0).astype(
+            bool
+        )
         state_0.residual_calculated = False
 
-        state_1, reward = self.find_equation_game.getNextState(state=state_0, action=4)  # '*' S S
+        state_1, reward = self.find_equation_game.getNextState(
+            state=state_0, action=4
+        )  # '*' S S
         hash_1 = self.find_equation_game.getHash(state=state_1)
-        self.mcts.valid_moves_for_s[hash_1] = self.game.getLegalMoves(state_1).astype(bool)
+        self.mcts.valid_moves_for_s[hash_1] = self.game.getLegalMoves(state_1).astype(
+            bool
+        )
         state_1.residual_calculated = False
 
-        state_2, reward = self.find_equation_game.getNextState(state=state_1, action=0)  # Constant
+        state_2, reward = self.find_equation_game.getNextState(
+            state=state_1, action=0
+        )  # Constant
         state_2 = get_residual_of_equation(
             state=state_2,
             function_to_get_current_tree_representation_int=self.find_equation_game.reader.map_tree_representation_to_int,
-            logger=self.logger)
+            logger=self.logger,
+        )
         hash_2 = self.find_equation_game.getHash(state=state_2)
-        self.mcts.valid_moves_for_s[hash_2] = self.game.getLegalMoves(state_2).astype(bool)
+        self.mcts.valid_moves_for_s[hash_2] = self.game.getLegalMoves(state_2).astype(
+            bool
+        )
         state_2.residual_calculated = True
 
-        state_3, reward = self.find_equation_game.getNextState(state=state_2, action=8)  # c
+        state_3, reward = self.find_equation_game.getNextState(
+            state=state_2, action=8
+        )  # c
         state_3 = get_residual_of_equation(
             state=state_3,
             function_to_get_current_tree_representation_int=self.find_equation_game.reader.map_tree_representation_to_int,
-            logger=self.logger
+            logger=self.logger,
         )
         hash_3 = self.find_equation_game.getHash(state=state_3)
-        self.mcts.valid_moves_for_s[hash_3] = self.game.getLegalMoves(state_3).astype(bool)
+        self.mcts.valid_moves_for_s[hash_3] = self.game.getLegalMoves(state_3).astype(
+            bool
+        )
         state_3.residual_calculated = True
 
-        state_4, reward = self.find_equation_game.getNextState(state=state_3, action=1)  # Variable
+        state_4, reward = self.find_equation_game.getNextState(
+            state=state_3, action=1
+        )  # Variable
         hash_4 = self.find_equation_game.getHash(state=state_4)
-        self.mcts.valid_moves_for_s[hash_4] = self.game.getLegalMoves(state_4).astype(bool)
+        self.mcts.valid_moves_for_s[hash_4] = self.game.getLegalMoves(state_4).astype(
+            bool
+        )
         state_4.residual_calculated = False
 
-        state_5, reward = self.find_equation_game.getNextState(state=state_4, action=14)  # x_1     y = c * x_1
+        state_5, reward = self.find_equation_game.getNextState(
+            state=state_4, action=14
+        )  # x_1     y = c * x_1
         self.find_equation_game.getHash(state=state_5)
         state_5.residual_calculated = False
 
@@ -233,13 +286,31 @@ class Test_Hindsightexperience_replay(unittest.TestCase):
             dataset_columns=self.find_equation_game.dataset_columns,
             grammar=self.grammar,
             args=self.args,
-            mcts=self.mcts
+            mcts=self.mcts,
         )
-        y_soll = dataset_true[:, 0] * state_5.syntax_tree.constants_in_tree['c_0']['value']
+        y_soll = (
+            dataset_true[:, 0] * state_5.syntax_tree.constants_in_tree["c_0"]["value"]
+        )
         y_soll_residual = dataset_true[:, 0]
-        history_forward, history_backward = hindsight.create_hindsight_history(final_state=state_5)
-        np.testing.assert_almost_equal(y_soll, history_backward.observations[0]['data_frame']['y'], decimal=2)
-        np.testing.assert_almost_equal(y_soll, history_backward.observations[1]['data_frame']['y'], decimal=2)
-        np.testing.assert_almost_equal(y_soll, history_backward.observations[2]['data_frame']['y'], decimal=2)
-        np.testing.assert_almost_equal(y_soll_residual, history_backward.observations[3]['data_frame']['y'], decimal=2)
-        np.testing.assert_almost_equal(y_soll_residual, history_backward.observations[4]['data_frame']['y'], decimal=2)
+        history_forward, history_backward = hindsight.create_hindsight_history(
+            final_state=state_5
+        )
+        np.testing.assert_almost_equal(
+            y_soll, history_backward.observations[0]["data_frame"]["y"], decimal=2
+        )
+        np.testing.assert_almost_equal(
+            y_soll, history_backward.observations[1]["data_frame"]["y"], decimal=2
+        )
+        np.testing.assert_almost_equal(
+            y_soll, history_backward.observations[2]["data_frame"]["y"], decimal=2
+        )
+        np.testing.assert_almost_equal(
+            y_soll_residual,
+            history_backward.observations[3]["data_frame"]["y"],
+            decimal=2,
+        )
+        np.testing.assert_almost_equal(
+            y_soll_residual,
+            history_backward.observations[4]["data_frame"]["y"],
+            decimal=2,
+        )

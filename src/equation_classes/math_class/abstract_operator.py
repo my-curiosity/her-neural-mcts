@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
-import numpy as np 
+import numpy as np
+
 
 class AbstractOperator(ABC):
 
     @abstractmethod
     def __init__(self, node):
-        self.num_child = None   # number of child nodes for the operator
+        self.num_child = None  # number of child nodes for the operator
         self.node = node
         self.invertible = None  # is the operation invertible
         self.valid_min_value = -np.inf
@@ -51,7 +52,7 @@ class AbstractOperator(ABC):
          the syntax tree.
         :return:
         """
-        
+
     def operator_data_range(self, variable):
         """
         Specifies the node-level behavior for deleting
@@ -62,14 +63,12 @@ class AbstractOperator(ABC):
         max_value = self.valid_max_value
         depends_on_variable = False
         for i in range(self.num_child):
-            c_min_value, c_max_value, depends_on_variable =\
-                self.node.list_children[i].math_class.operator_data_range(variable)
+            c_min_value, c_max_value, depends_on_variable = self.node.list_children[
+                i
+            ].math_class.operator_data_range(variable)
             if depends_on_variable:
                 if c_min_value > min_value:
                     min_value = c_min_value
                 if c_max_value < max_value:
                     max_value = c_max_value
         return min_value, max_value, depends_on_variable
-            
-
-    

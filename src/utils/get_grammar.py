@@ -6,17 +6,17 @@ from definitions import ROOT_DIR
 def get_grammar_from_string(string, args):
     grammar = PCFG.fromstring(string)
     grammar.terminal_action = get_terminal_action_from_grammar(grammar)
-    if args.prior_source in 'grammar' or args.prior_source in 'uniform':
+    if args.prior_source in "grammar" or args.prior_source in "uniform":
         add_prior(grammar=grammar, args=args)
     return grammar
 
 
 def read_grammar_file(args):
     path = ROOT_DIR / args.data_path
-    with open(path / 'production_rules.txt') as file:
+    with open(path / "production_rules.txt") as file:
         content = file.read()
     grammar = get_grammar_from_string(content, args)
-    if args.prior_source in 'grammar' or args.prior_source in 'uniform':
+    if args.prior_source in "grammar" or args.prior_source in "uniform":
         add_prior(grammar=grammar, args=args)
 
     return grammar
@@ -24,7 +24,7 @@ def read_grammar_file(args):
 
 def get_terminal_action_from_grammar(grammar):
     for i, production in enumerate(grammar._productions):
-        if 'End' in production._rhs:
+        if "End" in production._rhs:
             return i
     return None
 
@@ -34,15 +34,13 @@ def add_prior(grammar, args):
     non_terminals = list(grammar._lhs_index.keys())  # noqa W0212
     prior_dict = {}
     for non_terminal in non_terminals:
-        if args.prior_source == 'grammar':
+        if args.prior_source == "grammar":
             non_terminal_prior = get_grammar_prior(
-                non_terminal=non_terminal,
-                productions=productions
+                non_terminal=non_terminal, productions=productions
             )
-        elif args.prior_source == 'uniform':
+        elif args.prior_source == "uniform":
             non_terminal_prior = get_uniform_prior(
-                non_terminal=non_terminal,
-                productions=productions
+                non_terminal=non_terminal, productions=productions
             )
         else:
             raise RuntimeError(f"Prior '{args.prior_source}' not supported.")
@@ -54,7 +52,9 @@ def get_grammar_prior(non_terminal, productions):
     non_terminal_prior = []
     for production in productions:
         if production._lhs == non_terminal:  # noqa W0212
-            non_terminal_prior.append(production._ProbabilisticMixIn__prob)  # noqa W0212
+            non_terminal_prior.append(
+                production._ProbabilisticMixIn__prob
+            )  # noqa W0212
         else:
             non_terminal_prior.append(0)
     return non_terminal_prior

@@ -9,6 +9,7 @@ Notes:
  - Base implementation sufficiently abstracted to accommodate both AlphaZero and MuZero.
  - Documentation 15/11/2020
 """
+
 import copy
 import logging
 import math
@@ -22,8 +23,7 @@ from abc import ABC
 import numpy as np
 from tqdm import trange
 
-from src.game.game_history import GameHistory, \
-    sample_batch
+from src.game.game_history import GameHistory, sample_batch
 import time
 from datetime import datetime
 import tensorflow as tf
@@ -33,14 +33,30 @@ from src.utils.files import highest_number_in_files
 from definitions import ROOT_DIR
 import random
 from src.preprocess_data.equation_preprocess_dummy import (
-    equation_to_action_sequence, get_dict_token_to_action)
+    equation_to_action_sequence,
+    get_dict_token_to_action,
+)
 from src.hindsight.hindsight import Hindsight
+
+
 class Coach(ABC):
     """
     This class controls the self-play and learning loop.
     """
 
-    def __init__(self, game, game_test, rule_predictor, rule_predictor_test, args, search_engine, run_name, checkpoint_train, checkpoint_manager, checkpoint_test=None) -> None:
+    def __init__(
+        self,
+        game,
+        game_test,
+        rule_predictor,
+        rule_predictor_test,
+        args,
+        search_engine,
+        run_name,
+        checkpoint_train,
+        checkpoint_manager,
+        checkpoint_test=None,
+    ) -> None:
         """
         Initialize the self-play class with an environment, an agent to train, requisite hyperparameters, a MCTS search
         engine, and an agent-interface.
@@ -58,40 +74,33 @@ class Coach(ABC):
         self.args = args
 
         # Initialize replay buffer and helper variable
-        self.trainExamplesHistory = deque(
-            maxlen=self.args.selfplay_buffer_window)
-        self.testExamplesHistory = deque(
-            maxlen=self.args.selfplay_buffer_window)
+        self.trainExamplesHistory = deque(maxlen=self.args.selfplay_buffer_window)
+        self.testExamplesHistory = deque(maxlen=self.args.selfplay_buffer_window)
 
         # Initialize network and search engine
         self.rule_predictor = rule_predictor
         self.rule_predictor_test = rule_predictor_test
-        self.mcts = search_engine(self.game,
-                                  self.rule_predictor,
-                                  self.args
-                                  )
-        self.mcts_test = search_engine(self.game_test,
-                                       self.rule_predictor_test,
-                                       self.args
-                                       )
+        self.mcts = search_engine(self.game, self.rule_predictor, self.args)
+        self.mcts_test = search_engine(
+            self.game_test, self.rule_predictor_test, self.args
+        )
 
         if run_name is None:
             run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
 
         self.log_dir = f"{ROOT_DIR}/out/logs/{run_name}"
-        self.file_writer = tf.summary.create_file_writer(
-            self.log_dir + "/metrics")
+        self.file_writer = tf.summary.create_file_writer(self.log_dir + "/metrics")
         self.file_writer.set_as_default()
         self.checkpoint = checkpoint_train
         self.checkpoint_manager = checkpoint_manager
         self.checkpoint_test = checkpoint_test
-        self.logger = get_log_obj(args=args, name='coach')
-        self.logger_test = get_log_obj(args=args, name='coach_test')
+        self.logger = get_log_obj(args=args, name="coach")
+        self.logger_test = get_log_obj(args=args, name="coach_test")
 
     @staticmethod
     def getCheckpointFile(iteration: int) -> str:
-        """ Helper function to format model checkpoint filenames """
-        return f'checkpoint_{iteration}.pth.tar'
+        """Helper function to format model checkpoint filenames"""
+        return f"checkpoint_{iteration}.pth.tar"
 
     def sampleBatch(self, histories: typing.List[GameHistory]) -> typing.List:
         """
@@ -113,18 +122,17 @@ class Coach(ABC):
             n=self.args.batch_size_training,
             prioritize=self.args.prioritize,
             alpha=self.args.prioritize_alpha,
-            beta=self.args.prioritize_beta
+            beta=self.args.prioritize_beta,
         )
 
         # Collect training examples for AlphaZero: (o_t, (pi_t, v_t), w_t)
         examples = [
             {
-                'observation': histories[h_i].stackObservations(
-                    length=1, t=i),
-                'probabilities_actor': histories[h_i].probabilities[i],
-                'observed_return': histories[h_i].observed_returns[i],
-                'loss_scale': loss_scale,
-                'found_equation': histories[h_i].found_equation,
+                "observation": histories[h_i].stackObservations(length=1, t=i),
+                "probabilities_actor": histories[h_i].probabilities[i],
+                "observed_return": histories[h_i].observed_returns[i],
+                "loss_scale": loss_scale,
+                "found_equation": histories[h_i].found_equation,
             }
             for (h_i, i), loss_scale in zip(sample_coordinates, sample_weight)
         ]
@@ -145,28 +153,31 @@ class Coach(ABC):
         :return: GameHistory Data structure containing all observed states and statistics required for network training.
         """
         history = GameHistory()
-        state = game.getInitialState()  # Always from perspective of player 1 for boardgames.
+        state = (
+            game.getInitialState()
+        )  # Always from perspective of player 1 for boardgames.
         complete_state = copy.deepcopy(state)
-        formula_started_from = state.observation['current_tree_representation_str']
+        formula_started_from = state.observation["current_tree_representation_str"]
         # Update MCTS visit count temperature according to an episode or weight update schedule.
         temp = self.get_temperature(game)
         if game == self.game_test:
-            mode = 'test'
+            mode = "test"
         else:
-            mode = 'train'
+            mode = "train"
         wandb.log({f"temperature_{mode}": temp})
         num_MCTS_sims = self.args.num_MCTS_sims
         self.logger.info(f"")
-        self.logger.info(f"{mode}: equation for {state.observation['true_equation_hash']} is searched")
+        self.logger.info(
+            f"{mode}: equation for {state.observation['true_equation_hash']} is searched"
+        )
         i = 0
         while not state.done:
             # Compute the move probability vector and state value using MCTS for the current state of the environment.
-            if self.args.training_mode == 'mcts' or mode=='test':
+            if self.args.training_mode == "mcts" or mode == "test":
                 pi, v = self.get_mcts_action(mcts, mode, state, temp)
             else:
                 state.action, pi, v = self.get_supervised_action(
-                iteration=i,
-                state=state
+                    iteration=i, state=state
                 )
             next_state, r = game.getNextState(
                 state=state,
@@ -174,39 +185,35 @@ class Coach(ABC):
             )
             complete_state.syntax_tree.expand_node_with_action(
                 node_id=complete_state.syntax_tree.nodes_to_expand[0],
-                action=state.action, 
-                build_syntax_tree_token_based=self.args.build_syntax_tree_token_based
+                action=state.action,
+                build_syntax_tree_token_based=self.args.build_syntax_tree_token_based,
             )
 
-            history.capture(
-                state=state,
-                pi=pi,
-                r=r,
-                v=v
-            )
+            history.capture(state=state, pi=pi, r=r, v=v)
             # Update state of control
             state = next_state
             i += 1
-        if  self.args.training_mode == 'mcts' or mode=='test':
+        if self.args.training_mode == "mcts" or mode == "test":
             self.log_mcts_results(game, history, mcts, mode, next_state)
 
         game.close(state)
         history.terminate(
             formula_started_from=formula_started_from,
-            found_equation=complete_state.syntax_tree.rearrange_equation_infix_notation(-1)[1]
+            found_equation=complete_state.syntax_tree.rearrange_equation_infix_notation(
+                -1
+            )[1],
         )
-        history.compute_returns(self.args, gamma=self.args.gamma, look_ahead=(
-            self.args.n_steps if self.game.n_players == 1 else None
-        ))
+        history.compute_returns(
+            self.args,
+            gamma=self.args.gamma,
+            look_ahead=(self.args.n_steps if self.game.n_players == 1 else None),
+        )
         return history
 
     def get_mcts_action(self, mcts, mode, state, temp):
-        pi, v = mcts.run_mcts(
-            state=state,
-            temperature=temp
-        )
+        pi, v = mcts.run_mcts(state=state, temperature=temp)
         # Take a step in the environment and observe the transition and store necessary statistics.
-        if mode == 'test':
+        if mode == "test":
             state.action = np.argmax(pi)
         state.action = np.random.choice(len(pi), p=pi)
         return pi, v
@@ -217,22 +224,21 @@ class Coach(ABC):
         initial_hash = list(mcts.Ps.keys())[0]
         for i in np.where(mcts.valid_moves_for_s[initial_hash])[0]:
             if (initial_hash, i) in mcts.Qsa:
-                self.logger.info(f"     {str(game.grammar._productions[i]._rhs) :<120}|"
-                                 f" Ps: {round(mcts.Ps[initial_hash][i], 2):<10.2f}|"
-                                 f"init. Qsa: {round(mcts.initial_Qsa[(initial_hash, i)], 2) if (initial_hash, i) in mcts.initial_Qsa else 0:<10}"
-                                 f" mcts: {round(history.probabilities[0][i], 2):<10}|"
-                                 f" Qsa: {round(mcts.Qsa[(initial_hash, i)], 2):<10}|"
-                                 f" #Ssa: {mcts.times_edge_s_a_was_visited[(initial_hash, i)]:<10}"
-                                 )
+                self.logger.info(
+                    f"     {str(game.grammar._productions[i]._rhs) :<120}|"
+                    f" Ps: {round(mcts.Ps[initial_hash][i], 2):<10.2f}|"
+                    f"init. Qsa: {round(mcts.initial_Qsa[(initial_hash, i)], 2) if (initial_hash, i) in mcts.initial_Qsa else 0:<10}"
+                    f" mcts: {round(history.probabilities[0][i], 2):<10}|"
+                    f" Qsa: {round(mcts.Qsa[(initial_hash, i)], 2):<10}|"
+                    f" #Ssa: {mcts.times_edge_s_a_was_visited[(initial_hash, i)]:<10}"
+                )
             # self.logger.info(f"{' '*10}equation add to buffer: r={state.reward:.2} {complete_state.syntax_tree.__str__()}")
         if mcts.states_explored_till_perfect_fit > 0:
             wandb.log(
                 {
-                    f"num_states_to_perfect_fit_{mode}":
-                        mcts.states_explored_till_perfect_fit,
+                    f"num_states_to_perfect_fit_{mode}": mcts.states_explored_till_perfect_fit,
                     f"{next_state.observation['true_equation_hash']}"
-                    f"_num_states_to_perfect_fit_{mode}":
-                        mcts.states_explored_till_perfect_fit
+                    f"_num_states_to_perfect_fit_{mode}": mcts.states_explored_till_perfect_fit,
                 }
             )
         else:
@@ -240,7 +246,6 @@ class Coach(ABC):
                 {
                     f"equation_not_found_{next_state.observation['true_equation_hash']}_{mode}": 1,
                     f"equation_not_found_{mode}": 1,
-
                 }
             )
 
@@ -264,19 +269,21 @@ class Coach(ABC):
         """
         t_end = time.time() + 60 * self.args.minutes_to_run
         self.metrics_train = {
-            'mode': 'train',
-            'best_reward_found': tf.keras.metrics.Mean(dtype=tf.float32),
-            'done_rollout_ratio': tf.keras.metrics.Mean(dtype=tf.float32)
+            "mode": "train",
+            "best_reward_found": tf.keras.metrics.Mean(dtype=tf.float32),
+            "done_rollout_ratio": tf.keras.metrics.Mean(dtype=tf.float32),
         }
         self.metrics_test = {
-            'mode': 'test',
-            'best_reward_found': tf.keras.metrics.Mean(dtype=tf.float32),
-            'done_rollout_ratio': tf.keras.metrics.Mean(dtype=tf.float32)
+            "mode": "test",
+            "best_reward_found": tf.keras.metrics.Mean(dtype=tf.float32),
+            "done_rollout_ratio": tf.keras.metrics.Mean(dtype=tf.float32),
         }
         self.loadTrainExamples(int(self.checkpoint.step))
         while self.checkpoint.step < self.args.max_iteration_to_run:
-            self.logger.warning(f'------------------ITER'
-                                f' {int(self.checkpoint.step)}----------------')
+            self.logger.warning(
+                f"------------------ITER"
+                f" {int(self.checkpoint.step)}----------------"
+            )
             # Self-play/ Gather training data.
             if not self.args.only_test:
                 if self.args.generate_new_training_data:
@@ -285,19 +292,22 @@ class Coach(ABC):
                         mcts=self.mcts,
                         game=self.game,
                         logger=self.logger,
-                        num_selfplay_iterations=self.args.num_selfplay_iterations
+                        num_selfplay_iterations=self.args.num_selfplay_iterations,
                     )
                     self.trainExamplesHistory.append(iteration_train_examples)
                     wandb.log(
-                        {f"iteration": self.checkpoint.step,
-                         f"average_reward_iteration_{self.metrics_train['mode']}":
-                             self.metrics_train['best_reward_found'].result(),
-                         f"average_done_rollout_ratio_iteration_{self.metrics_train['mode']}":
-                             self.metrics_train['done_rollout_ratio'].result()
-                         }
+                        {
+                            f"iteration": self.checkpoint.step,
+                            f"average_reward_iteration_{self.metrics_train['mode']}": self.metrics_train[
+                                "best_reward_found"
+                            ].result(),
+                            f"average_done_rollout_ratio_iteration_{self.metrics_train['mode']}": self.metrics_train[
+                                "done_rollout_ratio"
+                            ].result(),
+                        }
                     )
                     self.saveTrainExamples(int(self.checkpoint.step))
-                if self.args.prior_source in 'neural_net':
+                if self.args.prior_source in "neural_net":
                     if self.checkpoint.step > self.args.cold_start_iterations:
                         self.update_network()
                     save_path = self.checkpoint_manager.save(check_interval=True)
@@ -306,8 +316,10 @@ class Coach(ABC):
                     )
                 else:
                     save_path = self.checkpoint_manager.save(check_interval=True)
-            if self.args.test_network and \
-                    self.checkpoint.step % self.args.test_every_n_steps == 0:
+            if (
+                self.args.test_network
+                and self.checkpoint.step % self.args.test_every_n_steps == 0
+            ):
                 self.test_epoche(save_path=save_path)
             self.checkpoint.step.assign_add(1)
 
@@ -319,53 +331,51 @@ class Coach(ABC):
         train_pi_loss = 0
         train_v_loss = 0
         train_contrastive_loss = 0
-        for _ in trange(self.args.num_gradient_steps,
-                        desc="Backpropagation",
-                        file=sys.stdout):
+        for _ in trange(
+            self.args.num_gradient_steps, desc="Backpropagation", file=sys.stdout
+        ):
             batch = self.sampleBatch(complete_history)
-            pi_batch_loss, v_batch_loss, contrastive_loss = \
-                self.rule_predictor.train(batch)
+            pi_batch_loss, v_batch_loss, contrastive_loss = self.rule_predictor.train(
+                batch
+            )
             train_pi_loss += pi_batch_loss
             train_v_loss += v_batch_loss
             train_contrastive_loss += contrastive_loss
-        wandb.log({
-            f"iteration": self.checkpoint.step,
-            f"Pi loss": train_pi_loss / self.args.num_gradient_steps,
-            "V loss": train_v_loss / self.args.num_gradient_steps,
-            "Contrastive loss": train_contrastive_loss / self.args.num_gradient_steps
-        }
+        wandb.log(
+            {
+                f"iteration": self.checkpoint.step,
+                f"Pi loss": train_pi_loss / self.args.num_gradient_steps,
+                "V loss": train_v_loss / self.args.num_gradient_steps,
+                "Contrastive loss": train_contrastive_loss
+                / self.args.num_gradient_steps,
+            }
         )
-
 
     def gather_data(self, metrics, mcts, game, logger, num_selfplay_iterations):
         iteration_examples = list()
-        metrics['best_reward_found'].reset_state()
-        metrics['done_rollout_ratio'].reset_state()
+        metrics["best_reward_found"].reset_state()
+        metrics["done_rollout_ratio"].reset_state()
         minimal_reward_runs = 0
         for i in range(num_selfplay_iterations):
             mcts.clear_tree()
-            result_episode = self.execute_one_game(
-                game=game,
-                mcts=mcts
-            )
+            result_episode = self.execute_one_game(game=game, mcts=mcts)
             if result_episode.observed_returns[0] == self.args.minimum_reward:
                 minimal_reward_runs += 1
             iteration_examples.append(result_episode)
             self.log_best_list(game, logger)
 
-            metrics['best_reward_found'].update_state(
-                game.max_list.max_list_state[-1].reward if len(game.max_list.max_list_state)>0 else -1
+            metrics["best_reward_found"].update_state(
+                game.max_list.max_list_state[-1].reward
+                if len(game.max_list.max_list_state) > 0
+                else -1
             )
-            if metrics['mode'] == 'train': # self.args.hindsight_experience_replay and
-                self.logger.warning('start with hindsight')
+            if metrics["mode"] == "train":  # self.args.hindsight_experience_replay and
+                self.logger.warning("start with hindsight")
                 self.add_hindsight_history(game, iteration_examples, mcts)
-                self.logger.warning('end hindsight')
+                self.logger.warning("end hindsight")
 
         iteration_examples = self.augment_buffer(
-            iteration_examples,
-            metrics,
-            minimal_reward_runs,
-            num_selfplay_iterations
+            iteration_examples, metrics, minimal_reward_runs, num_selfplay_iterations
         )
         return iteration_examples
 
@@ -375,20 +385,22 @@ class Coach(ABC):
             dataset_columns=game.dataset_columns,
             grammar=game.grammar,
             args=self.args,
-            mcts=mcts
+            mcts=mcts,
         )
         random_sorted_keys = list(mcts.Ssa.keys())
         random.shuffle(random_sorted_keys)
-        num_elements_to_sample_per_depth = {depth: self.args.hindsight_samples
-                                            for depth in range(self.args.max_depth_of_tree + 1)}
+        num_elements_to_sample_per_depth = {
+            depth: self.args.hindsight_samples
+            for depth in range(self.args.max_depth_of_tree + 1)
+        }
         for key in random_sorted_keys:
             state = mcts.Ssa[key]
             if state.syntax_tree.complete:
                 tree_depth = state.syntax_tree.current_depth
                 if num_elements_to_sample_per_depth[tree_depth] > 0:
                     num_elements_to_sample_per_depth[tree_depth] -= 1
-                    history_forward, history_backward = hindsight.create_hindsight_history(
-                        final_state=state
+                    history_forward, history_backward = (
+                        hindsight.create_hindsight_history(final_state=state)
                     )
                     if len(history_forward) > 0:
                         iteration_train_examples.append(history_forward)
@@ -398,25 +410,33 @@ class Coach(ABC):
 
     def log_best_list(self, game, logger):
         logger.info(f"Best equations found:")
-        for i in range(len(game.max_list.max_list_state) -1  , - 1, -1):
-            logger.info(f"{i}: found equation: {game.max_list.max_list_state[i].complete_discovered_equation:<80}"
-                        f" r={round(game.max_list.max_list_keys[i], 3)}"
-                        )
+        for i in range(len(game.max_list.max_list_state) - 1, -1, -1):
+            logger.info(
+                f"{i}: found equation: {game.max_list.max_list_state[i].complete_discovered_equation:<80}"
+                f" r={round(game.max_list.max_list_keys[i], 3)}"
+            )
             logger.info(game.max_list.max_list_state[i].syntax_tree.constants_in_tree)
 
-    def augment_buffer(self, iteration_examples, metrics, minimal_reward_runs, num_selfplay_iterations):
-        if metrics['mode'] == 'train':
+    def augment_buffer(
+        self, iteration_examples, metrics, minimal_reward_runs, num_selfplay_iterations
+    ):
+        if metrics["mode"] == "train":
             if self.args.balance_buffer:
                 iteration_examples = self.balance_buffer(
                     iteration_examples=iteration_examples,
                     minimal_reward_runs=minimal_reward_runs,
-                    num_selfplay_iterations=num_selfplay_iterations
+                    num_selfplay_iterations=num_selfplay_iterations,
                 )
 
         return iteration_examples
 
-    def balance_buffer(self, iteration_examples, minimal_reward_runs, num_selfplay_iterations):
-        allowed_minimal_runs = int(num_selfplay_iterations * self.args.max_percent_of_minimal_reward_runs_in_buffer)
+    def balance_buffer(
+        self, iteration_examples, minimal_reward_runs, num_selfplay_iterations
+    ):
+        allowed_minimal_runs = int(
+            num_selfplay_iterations
+            * self.args.max_percent_of_minimal_reward_runs_in_buffer
+        )
         if allowed_minimal_runs < minimal_reward_runs:
             balanced_iteration_examples = []
             allowed_minimal_runs_to_add = allowed_minimal_runs
@@ -433,39 +453,42 @@ class Coach(ABC):
             return iteration_examples
 
     def test_epoche(self, save_path):
-        self.logger.warning(f'------------------ Test ----------------')
-        self.logger.info(f'load model to test from: {save_path}')
+        self.logger.warning(f"------------------ Test ----------------")
+        self.logger.info(f"load model to test from: {save_path}")
         self.checkpoint_test.restore(save_path)
         iteration_test_examples = self.gather_data(
             metrics=self.metrics_test,
             mcts=self.mcts_test,
             game=self.game_test,
             logger=self.logger_test,
-            num_selfplay_iterations=self.args.num_selfplay_iterations_test
+            num_selfplay_iterations=self.args.num_selfplay_iterations_test,
         )
         self.testExamplesHistory.append(iteration_test_examples)
         if self.checkpoint.step > self.args.cold_start_iterations:
-            """ Same as in update_network"""
+            """Same as in update_network"""
             complete_history = GameHistory.flatten(self.testExamplesHistory)
             test_pi_loss = 0
             test_v_loss = 0
             test_contrastive_loss = 0
             for i in range(10):
                 batch = self.sampleBatch(complete_history)
-                action_prediction, v, pi_batch_loss, v_batch_loss, contrastive_loss = \
+                action_prediction, v, pi_batch_loss, v_batch_loss, contrastive_loss = (
                     self.rule_predictor.predict_with_loss(batch)
+                )
                 test_pi_loss += pi_batch_loss
                 test_v_loss += v_batch_loss
                 test_contrastive_loss += contrastive_loss
 
-            wandb.log({
-                f"iteration": self.checkpoint.step,
-                f"Test pi loss": test_pi_loss /10,
-                "Test v loss": test_v_loss /10,
-                "Test Contrastive loss": test_contrastive_loss/10,
-                f"avg_best_reward_found_{self.metrics_test['mode']}":
-                    self.metrics_test['best_reward_found'].result()
-            }
+            wandb.log(
+                {
+                    f"iteration": self.checkpoint.step,
+                    f"Test pi loss": test_pi_loss / 10,
+                    "Test v loss": test_v_loss / 10,
+                    "Test Contrastive loss": test_contrastive_loss / 10,
+                    f"avg_best_reward_found_{self.metrics_test['mode']}": self.metrics_test[
+                        "best_reward_found"
+                    ].result(),
+                }
             )
 
     def saveTrainExamples(self, iteration: int) -> None:
@@ -475,15 +498,19 @@ class Coach(ABC):
         introduce a significant bottleneck to the runtime of the algorithm.
         :param iteration: int Current iteration of the self-play. Used as indexing value for the data filename.
         """
-        folder = ROOT_DIR / 'saved_models' / self.args.data_path / \
-                          str(self.args.experiment_name) / str(self.args.seed)
+        folder = (
+            ROOT_DIR
+            / "saved_models"
+            / self.args.data_path
+            / str(self.args.experiment_name)
+            / str(self.args.seed)
+        )
 
         if not os.path.exists(folder):
             os.makedirs(folder)
         filename = folder / f"buffer_{iteration}.examples"
         with open(filename, "wb+") as f:
-            Pickler(f, protocol=HIGHEST_PROTOCOL).dump(
-                self.trainExamplesHistory)
+            Pickler(f, protocol=HIGHEST_PROTOCOL).dump(self.trainExamplesHistory)
 
         # Don't hog up storage space and clean up old (never to be used again) data.
         old_checkpoint = folder / f"buffer_{iteration - 1}.examples"
@@ -497,14 +524,21 @@ class Coach(ABC):
         if len(self.args.replay_buffer_path) >= 1:
             if os.path.isfile(self.args.replay_buffer_path):
                 with open(self.args.replay_buffer_path, "rb") as f:
-                    self.logger.info(f"Replay buffer {self.args.replay_buffer_path}  found. Read it.")
+                    self.logger.info(
+                        f"Replay buffer {self.args.replay_buffer_path}  found. Read it."
+                    )
                     self.trainExamplesHistory = Unpickler(f).load()
             else:
                 self.logger.info(f"No replay buffer found. Use empty one.")
         else:
-            folder = ROOT_DIR / 'saved_models' / self.args.data_path / \
-                          str(self.args.experiment_name) / str(self.args.seed)
-            buffer_number = highest_number_in_files(path=folder, stem='buffer_')
+            folder = (
+                ROOT_DIR
+                / "saved_models"
+                / self.args.data_path
+                / str(self.args.experiment_name)
+                / str(self.args.seed)
+            )
+            buffer_number = highest_number_in_files(path=folder, stem="buffer_")
             filename = folder / f"buffer_{buffer_number}.examples"
 
             if os.path.isfile(filename):
@@ -515,24 +549,23 @@ class Coach(ABC):
                 self.logger.info(f"No replay buffer found. Use empty one.")
 
     def get_supervised_action(self, iteration, state):
-        if self.args.grammar_for_generation==self.args.grammar_search:
-            action = state.observation['action_sequence'][iteration]
-        elif self.args.grammar_search == 'Token_Based':
-            if not hasattr(self, 'token_to_action'):
+        if self.args.grammar_for_generation == self.args.grammar_search:
+            action = state.observation["action_sequence"][iteration]
+        elif self.args.grammar_search == "Token_Based":
+            if not hasattr(self, "token_to_action"):
                 self.token_to_action = get_dict_token_to_action(
-                    grammar=self.game.reader.grammar)
+                    grammar=self.game.reader.grammar
+                )
                 self.equation_to_action_sequence = {}
             action_sequence = equation_to_action_sequence(
-                equation =  state.observation['prefix_formula'],
+                equation=state.observation["prefix_formula"],
                 token_to_action=self.token_to_action,
                 equation_to_action_sequence=self.equation_to_action_sequence,
-                grammar = self.game.reader.grammar
+                grammar=self.game.reader.grammar,
             )
-            action=  action_sequence[iteration]
+            action = action_sequence[iteration]
         pi = np.zeros(self.mcts.action_size)
         pi[action] = 1
         v = 0
 
-
         return action, pi, v
-
