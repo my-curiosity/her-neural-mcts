@@ -1,6 +1,7 @@
 absl-py==1.4.0
 array_record==0.5.1
 astunparse==1.6.3
+black==24.8.0
 bleach==6.1.0
 cachetools==5.5.0
 certifi==2024.8.30
@@ -42,9 +43,10 @@ Keras-Preprocessing==1.1.2
 kiwisolver==1.4.7
 libclang==18.1.1
 lxml==5.3.0
-Markdown==3.7
+Markdown==3.3.4
 MarkupSafe==2.1.5
 matplotlib==3.9.2
+mypy-extensions==1.0.0
 nltk==3.9.1
 numpy==1.25.2
 oauth2client==4.1.3
@@ -54,6 +56,7 @@ opencv-python-headless==4.10.0.84
 opt-einsum==3.3.0
 packaging==24.1
 pandas==2.2.2
+pathspec==0.12.1
 pcfg==0.1.5
 pillow==10.4.0
 platformdirs==4.3.3
@@ -107,6 +110,7 @@ tf-slim==1.1.0
 threadpoolctl==3.5.0
 tokenizers==0.12.1
 toml==0.10.2
+tomli==2.0.2
 tqdm==4.66.5
 transformers==4.18.0
 typeguard==2.13.3
