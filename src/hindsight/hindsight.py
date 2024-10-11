@@ -98,18 +98,21 @@ class Hindsight:
         """
         actions.insert(0, state.production_action)
         previous_state = state.previous_state
-        self.add_forward_history(history_forward, previous_state, state)
-        history_forward, history_backward, hindsight_data = self.forward_pass(
+        self.add_state_to_forward_history(history_forward, previous_state, state)
+
+        history_forward, history_backward, hindsight_data = self.check_state_and_pass(
             actions, history_forward, history_backward, previous_state
         )
 
-        history_forward, history_backward, hindsight_data = self.backward_pass(
-            hindsight_data, history_forward, history_backward, previous_state, state
+        history_forward, history_backward, hindsight_data = (
+            self.add_state_to_backward_history(
+                hindsight_data, history_forward, history_backward, previous_state, state
+            )
         )
 
         return history_forward, history_backward, hindsight_data
 
-    def add_forward_history(self, history_forward, previous_state, state):
+    def add_state_to_forward_history(self, history_forward, previous_state, state):
         """
         adds the forward history. When the reward of the final state is
         not high enough a uniform distribution is added to the buffer
@@ -141,7 +144,7 @@ class Hindsight:
                 state=previous_state, pi=mcts_distribution, r=state.reward, v=None
             )
 
-    def backward_pass(
+    def add_state_to_backward_history(
         self, hindsight_data, history_forward, history_backward, previous_state, state
     ):
         """
@@ -177,7 +180,9 @@ class Hindsight:
         )
         return history_forward, history_backward, hindsight_data
 
-    def forward_pass(self, actions, history_forward, history_backward, previous_state):
+    def check_state_and_pass(
+        self, actions, history_forward, history_backward, previous_state
+    ):
         if check_for_first_state(previous_state):
             hindsight_data = self.create_hindsight_data(
                 actions=actions, original_data=previous_state.observation["data_frame"]
