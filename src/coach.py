@@ -215,7 +215,8 @@ class Coach(ABC):
         # Take a step in the environment and observe the transition and store necessary statistics.
         if mode == "test":
             state.action = np.argmax(pi)
-        state.action = np.random.choice(len(pi), p=pi)
+        else:
+            state.action = np.random.choice(len(pi), p=pi)
         return pi, v
 
     def log_mcts_results(self, game, history, mcts, mode, next_state):
