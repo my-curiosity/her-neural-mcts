@@ -1,3 +1,5 @@
+from src.neural_nets.bitflip.bit_flip_net import BitFlipNNet
+from src.neural_nets.bitflip_rule_predictor_net import BitFlipRulePredictorNet
 from src.neural_nets.equation_encoder.equation_encoder_dummy import EquationEncoderDummy
 from src.neural_nets.equation_encoder.transformer_encoder_string import (
     TransformerEncoderString,
@@ -17,10 +19,10 @@ from src.neural_nets.data_set_encoder.text_transformer import TextTransformer
 
 from src.neural_nets.decoder.mlp_decoder import MLP_Decoder
 
-from src.neural_nets.rule_predictor_net import RulePredictorNet
+from src.neural_nets.equation_rule_predictor_net import EquationRulePredictorNet
 
 
-def get_rule_predictor(args, reader_data):
+def get_rule_predictor_equation(args, reader_data):
     # EquationEncoder
     if args.class_equation_encoder == "EquationEncoderDummy":
         encoder_tree_class = EquationEncoderDummy
@@ -81,7 +83,7 @@ def get_rule_predictor(args, reader_data):
 
     input_feature_dims = get_input_feature_dim_for_DatasetTransformer(args, reader_data)
 
-    rule_predictor = RulePredictorNet(
+    rule_predictor = EquationRulePredictorNet(
         encoder_tree_class=encoder_tree_class,
         encoder_tree_args={
             "num_layers": args.num_layer_encoder_equation_transformer,
@@ -147,6 +149,18 @@ def get_rule_predictor(args, reader_data):
             "batch_sz": 1,
             "normalize_way": args.critic_decoder_normalize_way,
             "name": "critic",
+        },
+        args=args,
+    )
+    return rule_predictor
+
+
+def get_rule_predictor_bitflip(args):
+    rule_predictor = BitFlipRulePredictorNet(
+        nnet_class=BitFlipNNet,
+        nnet_args={
+            "num_bits": args.num_bits,
+            "name": "bitflip",
         },
         args=args,
     )

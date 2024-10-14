@@ -7,13 +7,18 @@ https://github.com/kaesve/muzero
 
 import warnings
 
+from src.neural_nets.bitflip_rule_predictor_skeleton import BitFlipRulePredictorSkeleton
+
 warnings.filterwarnings("ignore")
 import random
 from datetime import datetime
 from src.config_ngedn import Config
 from src.coach import Coach
-from src.neural_nets.rule_predictor_skeleton import RulePredictorSkeleton
+from src.neural_nets.equation_rule_predictor_skeleton import (
+    EquationRulePredictorSkeleton,
+)
 from src.game.find_equation_game import FindEquationGame
+from src.game.bit_flip_game import BitFlipGame
 from src.mcts.classic_mcts import ClassicMCTS
 from src.mcts.amex_mcts import AmEx_MCTS
 import tensorflow as tf
@@ -62,9 +67,15 @@ def run():
     # preprocessor = get_preprocessor_class(args=args)
     # reader_train = preprocessor(args=args, train_test_or_val='train')
     # iter_train = reader_train.get_datasets()
-    game = FindEquationGame(grammar, args, train_test_or_val="train")
 
-    game_test = FindEquationGame(grammar, args, train_test_or_val="test")
+    if args.game == "equation_discovery":
+        game = FindEquationGame(grammar, args, train_test_or_val="train")
+        game_test = FindEquationGame(grammar, args, train_test_or_val="test")
+    elif args.game == "bit_flip":
+        game = BitFlipGame(args)
+        game_test = BitFlipGame(args)
+    else:
+        pass
 
     learnA0(g=game, args=args, run_name=args.experiment_name, game_test=game_test)
     wandb.log({f"sucessful": True})
@@ -82,10 +93,19 @@ def learnA0(g, args, run_name: str, game_test) -> None:
     print("Testing:", ", ".join(run_name.split("_")))
 
     # Extract neural network and algorithm arguments separately
-    rule_predictor_train = RulePredictorSkeleton(args=args, reader_train=g.reader)
-    rule_predictor_test = RulePredictorSkeleton(
-        args=args, reader_train=game_test.reader
-    )
+    if args.game == "equation_discovery":
+        rule_predictor_train = EquationRulePredictorSkeleton(
+            args=args, reader_train=g.reader
+        )
+        rule_predictor_test = EquationRulePredictorSkeleton(
+            args=args, reader_train=game_test.reader
+        )
+    elif args.game == "bit_flip":
+        rule_predictor_train = BitFlipRulePredictorSkeleton(args=args)
+        rule_predictor_test = BitFlipRulePredictorSkeleton(args=args)
+    else:
+        pass
+
     checkpoint_train, manager_train = load_pretrained_net(
         args=args, rule_predictor=rule_predictor_train, game=g
     )
@@ -164,17 +184,20 @@ def load_pretrained_net(args, rule_predictor, game):
 
 
 def initialize_net(args, checkpoint_current_model, game):
-    iter = game.reader.get_datasets()
     net = checkpoint_current_model.net
-    data_dict = next(iter)
-    prepared_syntax_tree = [
-        np.zeros(shape=(args.max_tokens_equation), dtype=np.float32)
-    ]
-    net(
-        input_encoder_tree=prepared_syntax_tree,
-        input_encoder_measurement=[data_dict["data_frame"]],
-    )
-    pass
+
+    if isinstance(game, FindEquationGame):
+        iter = game.reader.get_datasets()
+        data_dict = next(iter)
+        prepared_syntax_tree = [
+            np.zeros(shape=(args.max_tokens_equation), dtype=np.float32)
+        ]
+        net(
+            input_encoder_tree=prepared_syntax_tree,
+            input_encoder_measurement=[data_dict["data_frame"]],
+        )
+    else:
+        pass
 
 
 def get_run_name(config_name: str, architecture: str, game_name: str) -> str:

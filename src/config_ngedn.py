@@ -749,6 +749,20 @@ class Config:
             help="Number of hindsight samples to use at each tree depth",
         )
 
+        parser.add_argument(
+            "--game",
+            type=str,
+            choices=["bit_flip", "equation_discovery"],
+            default="equation_discovery",
+            help="Which game type to choose",
+        )
+        parser.add_argument(
+            "--num_bits",
+            type=int,
+            default=10,
+            help="Size of the BitFlip environment",
+        )
+
         args = parser.parse_args()
         if args.seed is None:
             args.seed = int(time.time())

@@ -23,6 +23,7 @@ from abc import ABC
 import numpy as np
 from tqdm import trange
 
+from src.game.find_equation_game import FindEquationGame
 from src.game.game_history import GameHistory, sample_batch
 import time
 from datetime import datetime
@@ -132,7 +133,11 @@ class Coach(ABC):
                 "probabilities_actor": histories[h_i].probabilities[i],
                 "observed_return": histories[h_i].observed_returns[i],
                 "loss_scale": loss_scale,
-                "found_equation": histories[h_i].found_equation,
+                "found_equation": (
+                    histories[h_i].found_equation
+                    if isinstance(self.game, FindEquationGame)
+                    else None
+                ),
             }
             for (h_i, i), loss_scale in zip(sample_coordinates, sample_weight)
         ]
@@ -152,12 +157,6 @@ class Coach(ABC):
 
         :return: GameHistory Data structure containing all observed states and statistics required for network training.
         """
-        history = GameHistory()
-        state = (
-            game.getInitialState()
-        )  # Always from perspective of player 1 for boardgames.
-        complete_state = copy.deepcopy(state)
-        formula_started_from = state.observation["current_tree_representation_str"]
         # Update MCTS visit count temperature according to an episode or weight update schedule.
         temp = self.get_temperature(game)
         if game == self.game_test:
@@ -165,11 +164,22 @@ class Coach(ABC):
         else:
             mode = "train"
         wandb.log({f"temperature_{mode}": temp})
+
+        history = GameHistory()
+        state = (
+            game.getInitialState()
+        )  # Always from perspective of player 1 for boardgames.
+
+        if isinstance(game, FindEquationGame):
+            complete_state = copy.deepcopy(state)
+            formula_started_from = state.observation["current_tree_representation_str"]
+            self.logger.info(f"")
+            self.logger.info(
+                f"{mode}: equation for {state.observation['true_equation_hash']} is searched"
+            )
+
         num_MCTS_sims = self.args.num_MCTS_sims
-        self.logger.info(f"")
-        self.logger.info(
-            f"{mode}: equation for {state.observation['true_equation_hash']} is searched"
-        )
+
         i = 0
         while not state.done:
             # Compute the move probability vector and state value using MCTS for the current state of the environment.
@@ -183,11 +193,13 @@ class Coach(ABC):
                 state=state,
                 action=state.action,
             )
-            complete_state.syntax_tree.expand_node_with_action(
-                node_id=complete_state.syntax_tree.nodes_to_expand[0],
-                action=state.action,
-                build_syntax_tree_token_based=self.args.build_syntax_tree_token_based,
-            )
+
+            if isinstance(game, FindEquationGame):
+                complete_state.syntax_tree.expand_node_with_action(
+                    node_id=complete_state.syntax_tree.nodes_to_expand[0],
+                    action=state.action,
+                    build_syntax_tree_token_based=self.args.build_syntax_tree_token_based,
+                )
 
             history.capture(state=state, pi=pi, r=r, v=v)
             # Update state of control
@@ -198,10 +210,14 @@ class Coach(ABC):
 
         game.close(state)
         history.terminate(
-            formula_started_from=formula_started_from,
-            found_equation=complete_state.syntax_tree.rearrange_equation_infix_notation(
-                -1
-            )[1],
+            formula_started_from=(
+                formula_started_from if isinstance(game, FindEquationGame) else None
+            ),
+            found_equation=(
+                complete_state.syntax_tree.rearrange_equation_infix_notation(-1)[1]
+                if isinstance(game, FindEquationGame)
+                else None
+            ),
         )
         history.compute_returns(
             self.args,
@@ -226,7 +242,7 @@ class Coach(ABC):
         for i in np.where(mcts.valid_moves_for_s[initial_hash])[0]:
             if (initial_hash, i) in mcts.Qsa:
                 self.logger.info(
-                    f"     {str(game.grammar._productions[i]._rhs) :<120}|"
+                    f"     {str(game.grammar._productions[i]._rhs if isinstance(game, FindEquationGame) else None) :<120}|"
                     f" Ps: {round(mcts.Ps[initial_hash][i], 2):<10.2f}|"
                     f"init. Qsa: {round(mcts.initial_Qsa[(initial_hash, i)], 2) if (initial_hash, i) in mcts.initial_Qsa else 0:<10}"
                     f" mcts: {round(history.probabilities[0][i], 2):<10}|"
@@ -238,14 +254,14 @@ class Coach(ABC):
             wandb.log(
                 {
                     f"num_states_to_perfect_fit_{mode}": mcts.states_explored_till_perfect_fit,
-                    f"{next_state.observation['true_equation_hash']}"
+                    f"{next_state.observation['true_equation_hash'] if isinstance(game, FindEquationGame) else next_state.observation}"
                     f"_num_states_to_perfect_fit_{mode}": mcts.states_explored_till_perfect_fit,
                 }
             )
         else:
             wandb.log(
                 {
-                    f"equation_not_found_{next_state.observation['true_equation_hash']}_{mode}": 1,
+                    f"equation_not_found_{next_state.observation['true_equation_hash'] if isinstance(game, FindEquationGame) else next_state.observation}_{mode}": 1,
                     f"equation_not_found_{mode}": 1,
                 }
             )
@@ -363,7 +379,8 @@ class Coach(ABC):
             if result_episode.observed_returns[0] == self.args.minimum_reward:
                 minimal_reward_runs += 1
             iteration_examples.append(result_episode)
-            self.log_best_list(game, logger)
+            if isinstance(game, FindEquationGame):
+                self.log_best_list(game, logger)
 
             metrics["best_reward_found"].update_state(
                 game.max_list.max_list_state[-1].reward
@@ -372,7 +389,7 @@ class Coach(ABC):
             )
             if metrics["mode"] == "train":  # self.args.hindsight_experience_replay and
                 self.logger.warning("start with hindsight")
-                self.add_hindsight_history(game, iteration_examples, mcts)
+                # self.add_hindsight_history(game, iteration_examples, mcts)
                 self.logger.warning("end hindsight")
 
         iteration_examples = self.augment_buffer(

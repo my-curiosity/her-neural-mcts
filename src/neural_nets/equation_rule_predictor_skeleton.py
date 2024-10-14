@@ -1,7 +1,7 @@
 import pandas as pd
 import tensorflow as tf
 import typing
-from src.neural_nets.get_rule_predictor_class import get_rule_predictor
+from src.neural_nets.get_rule_predictor_class import get_rule_predictor_equation
 import numpy as np
 import src.neural_nets.loss as loss
 from src.utils.tensors import expand_tensor_to_same_size
@@ -13,12 +13,12 @@ import time
 from src.neural_nets.loss import NT_Xent
 
 
-class RulePredictorSkeleton(tf.keras.Model):
+class EquationRulePredictorSkeleton(tf.keras.Model):
 
     def __init__(self, args, reader_train):
-        super(RulePredictorSkeleton, self).__init__()
+        super(EquationRulePredictorSkeleton, self).__init__()
         self.single_player = (True,)
-        self.net = get_rule_predictor(args=args, reader_data=reader_train)
+        self.net = get_rule_predictor_equation(args=args, reader_data=reader_train)
         self.optimizer_encoder_measurement = tf.keras.optimizers.Adam(
             learning_rate=1e-5, beta_1=0.9, beta_2=0.98, epsilon=1e-9, clipnorm=0.001
         )

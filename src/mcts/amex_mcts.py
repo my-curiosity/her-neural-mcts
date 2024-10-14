@@ -13,6 +13,8 @@ Notes:
 
 import typing
 import numpy as np
+
+from src.game.find_equation_game import FindEquationGame
 from src.game.game import GameState
 from src.utils.utils import tie_breaking_argmax
 from src.mcts.classic_mcts import ClassicMCTS
@@ -74,12 +76,16 @@ class AmEx_MCTS(ClassicMCTS):
         )
         start_time = time.time()
         # -2 for y node and start node
-        num_mcts_sims = int(
-            max(
-                10,
-                self.args.num_MCTS_sims
-                * 4 ** (-(len(state.syntax_tree.dict_of_nodes) - 2)),
+        num_mcts_sims = (
+            int(
+                max(
+                    10,
+                    self.args.num_MCTS_sims
+                    * 4 ** (-(len(state.syntax_tree.dict_of_nodes) - 2)),
+                )
             )
+            if isinstance(self.game, FindEquationGame)
+            else self.args.num_MCTS_sims
         )
 
         for num_sim in range(num_mcts_sims):

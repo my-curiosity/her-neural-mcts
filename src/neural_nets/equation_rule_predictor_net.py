@@ -9,7 +9,7 @@ from src.utils.tensors import tf_save_cast_to_float_32
 import numpy as np
 
 
-class RulePredictorNet(tf.keras.Model):
+class EquationRulePredictorNet(tf.keras.Model):
 
     def __init__(
         self,
@@ -23,7 +23,7 @@ class RulePredictorNet(tf.keras.Model):
         critic_decoder_args,
         args,
     ):
-        super(RulePredictorNet, self).__init__()
+        super(EquationRulePredictorNet, self).__init__()
         self.encoder_tree = encoder_tree_class(**encoder_tree_args)
         self.encoder_measurement = encoder_measurement_class(**encoder_measurement_args)
         self.actor = actor_decoder_class(**actor_decoder_args)
