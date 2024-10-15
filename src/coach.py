@@ -12,7 +12,6 @@ Notes:
 
 import copy
 import logging
-import math
 import os
 import sys
 import typing
@@ -66,7 +65,7 @@ class Coach(ABC):
         :param run_name:
         :param game: Game Implementation of Game class for environment logic.
         :param rule_predictor: Some implementation of a neural network class to be trained.
-        :param args Data structure containing parameters for self-play.
+        :param args: Data structure containing parameters for self-play.
         :param search_engine: Class containing the logic for performing MCTS using the neural_net.
         """
 
@@ -148,7 +147,7 @@ class Coach(ABC):
         Perform one episode of self-play for gathering data to train neural networks on.
 
         The implementation details of the neural networks/ agents, temperature schedule, data storage
-        is kept highly transparent on this side of the algorithm. Hence for implementation details
+        is kept highly transparent on this side of the algorithm. Hence, for implementation details
         see the specific implementations of the function calls.
 
         At every step we record a snapshot of the state into a GameHistory object, this includes the observation,
@@ -177,8 +176,6 @@ class Coach(ABC):
             self.logger.info(
                 f"{mode}: equation for {state.observation['true_equation_hash']} is searched"
             )
-
-        num_MCTS_sims = self.args.num_MCTS_sims
 
         i = 0
         while not state.done:
@@ -249,7 +246,7 @@ class Coach(ABC):
                     f" Qsa: {round(mcts.Qsa[(initial_hash, i)], 2):<10}|"
                     f" #Ssa: {mcts.times_edge_s_a_was_visited[(initial_hash, i)]:<10}"
                 )
-            # self.logger.info(f"{' '*10}equation add to buffer: r={state.reward:.2} {complete_state.syntax_tree.__str__()}")
+
         if mcts.states_explored_till_perfect_fit > 0:
             wandb.log(
                 {
@@ -389,7 +386,7 @@ class Coach(ABC):
             )
             if metrics["mode"] == "train":  # self.args.hindsight_experience_replay and
                 self.logger.warning("start with hindsight")
-                # self.add_hindsight_history(game, iteration_examples, mcts)
+                self.add_hindsight_history(game, iteration_examples, mcts)
                 self.logger.warning("end hindsight")
 
         iteration_examples = self.augment_buffer(

@@ -1,24 +1,17 @@
 import warnings
-
-warnings.filterwarnings("ignore")
-
 import sys
 import unittest
 
-import tensorflow as tf
-import random
-import numpy as np
-from src.start_nged import run
+from src.main import run
+
+warnings.filterwarnings("ignore")
 
 
-class Test_Hindsightexperience_replay(unittest.TestCase):
+class TestA0(unittest.TestCase):
 
-    def test_hindsight(self):
-        import warnings
-
-        warnings.filterwarnings("ignore")
+    def test_a0(self):
         sys.argv += (
-            " --experiment_name train_her__neural_net__data_grammar_8_run_1__LSTM_Measurement_Encoder__Transformer_Encoder_String__Endgame__125__"
+            " --experiment_name test_her"
             " --job_id 15559341"
             " --minutes_to_run 6800"
             " --max_iteration_to_run 300"
@@ -110,11 +103,9 @@ class Test_Hindsightexperience_replay(unittest.TestCase):
             " --max_percent_of_minimal_reward_runs_in_buffer 0.3"
             " --use-puct True"
             " --training_mode mcts"
-            " --hindsight_samples 0"
-            " --game bit_flip"
-            " --num_bits 5"
+            " --hindsight_samples 1"
+            " --game equation_discovery"
+            " --bitflip_num_bits 10"
+            " --bitflip_max_steps 100"
         ).split()
-        random.seed(42)
-        np.random.seed(0)
-        tf.random.set_seed(seed=42)
         run()

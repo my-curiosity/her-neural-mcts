@@ -10,7 +10,6 @@ probabilities. The MCTS also discounts backed up rewards given that gamma < 1.
 Notes:
  -  Adapted from https://github.com/suragnair/alpha-zero-general and https://github.com/kaesve/muzero/tree/master
 """
-
 import copy
 import typing
 import numpy as np
@@ -18,7 +17,6 @@ from src.game.game import GameState
 from src.utils.logging import get_log_obj
 from src.utils.utils import tie_breaking_argmax
 import random
-import time
 
 
 class ClassicMCTS:
@@ -27,38 +25,35 @@ class ClassicMCTS:
     logic.
     """
 
-    def __init__(self, game, rule_predictor, args) -> None:
+    def __init__(self, game, args, rule_predictor=None) -> None:
         """
         Initialize all requisite variables for performing MCTS.
-        :param rule_predictor:
         :param game: Game Implementation of Game class for environment logic.
         :param args: Data structure containing parameters for the tree search.
         """
-        self.game = game
         self.rule_predictor = rule_predictor
+        self.game = game
         self.args = args
 
         # Static helper variables.
         self.action_size = game.getActionSize()
 
         self.Qsa = {}  # stores Q values for s, a
-        self.initial_Qsa = {}  # stores Q values for s, a as predicted from the NN
         self.Ssa = {}  # stores state transitions for s, a
         self.Rsa = {}  # stores R values for s, a
         self.times_edge_s_a_was_visited = {}  # stores visit counts of edges
         self.times_s_was_visited = {}  # stores #times board s was visited
         self.Ps = {}  # stores initial policy
         self.valid_moves_for_s = {}  # stores game.getValidMoves for board s
-        self.visits_done_state = 0  # Count visits of done states.
-        self.visits_roll_out = 0  # Count how often a new state is explored
+        self.visits_done_state = 0 # Count visits of done states.
+        self.visits_roll_out = 0 # Count how often a new state is explored
         self.logger = get_log_obj(args=args)
 
-        self.temperature = None  # exponentiation factor
+        self.temperature = None # exponentiation factor
         self.states_explored_till_perfect_fit = -1
 
-    def run_mcts(
-        self, state: GameState, temperature: float
-    ) -> typing.Tuple[np.ndarray, float]:
+    def run_mcts(self, state: GameState, num_mcts_sims,
+                 temperature: float) -> typing.Tuple[np.ndarray, float]:
         """
         This function performs 'num_MCTS_sims' simulations of MCTS starting
         from the provided root GameState.
@@ -76,6 +71,7 @@ class ClassicMCTS:
 
         :param state: GameState Data structure containing the current state of
         the environment.
+        :param num_mcts_sims: The number of simulations to perform
         :param temperature: float Visit count exponentiation factor. A value of
         0 = Greedy, +infinity = uniformly random.
         :return: tuple (pi, v) The move probabilities of MCTS and the estimated
@@ -89,23 +85,16 @@ class ClassicMCTS:
 
         # Aggregate root state value over MCTS back-propagated values
         mct_return_list = []
-        start_time = time.time()
-        # -2 for y node and start node
-        num_mcts_sims = int(
-            max(
-                10,
-                self.args.num_MCTS_sims
-                * 4 ** (-(len(state.syntax_tree.dict_of_nodes) - 2)),
-            )
-        )
-
         for num_sim in range(num_mcts_sims):
-            mct_return = self._search(state=state)
+            mct_return = self._search(
+                state=state
+            )
             mct_return_list.append(mct_return)
 
         # MCTS Visit count array for each edge 'a' from root node 's_0'.
         move_probabilities = self.calculate_move_probabilities(
-            s_0, self.times_edge_s_a_was_visited
+            s_0,
+            self.times_edge_s_a_was_visited
         )
         v = (np.max(mct_return_list) * num_mcts_sims + v_0) / (num_mcts_sims + 1)
         return move_probabilities, v
@@ -119,9 +108,7 @@ class ClassicMCTS:
 
         move_probabilities = np.zeros(self.action_size)
 
-        if (
-            self.temperature == 0
-        ):  # Greedy selection. One hot encode the most visited paths (randomly break ties).
+        if self.temperature == 0:  # Greedy selection. One hot encode the most visited paths (randomly break ties).
             max_index = possible_actions[tie_breaking_argmax(action_utilities)]
             move_probabilities[max_index] = 1.0
         else:
@@ -137,9 +124,7 @@ class ClassicMCTS:
             # else:  # counts
             move_probabilities[possible_actions] = action_utilities
             try:
-                move_probabilities = np.divide(
-                    move_probabilities, np.sum(move_probabilities)
-                )
+                move_probabilities = np.divide(move_probabilities, np.sum(move_probabilities))
             except FloatingPointError:
                 move_probabilities = np.zeros(self.action_size)
                 max_index = possible_actions[tie_breaking_argmax(action_utilities)]
@@ -148,7 +133,7 @@ class ClassicMCTS:
         return move_probabilities
 
     def clear_tree(self) -> None:
-        """Clear all statistics stored in the current search tree"""
+        """ Clear all statistics stored in the current search tree """
         self.Qsa = {}  # stores Q values for s,a (as defined in the paper)
         self.Ssa = {}  # stores state transitions for s, a
         self.Rsa = {}  # stores R values for s, a
@@ -160,7 +145,8 @@ class ClassicMCTS:
         self.visits_roll_out = 0
         self.states_explored_till_perfect_fit = -1
 
-    def initialize_root(self, state: GameState) -> typing.Tuple[bytes, float]:
+    def initialize_root(self, state: GameState) -> \
+            typing.Tuple[bytes, float]:
         """
         Perform initial inference for the root state.
         Additionally, mask the illegal moves in the network prior and
@@ -186,30 +172,23 @@ class ClassicMCTS:
         return s_0, v_0
 
     def get_prior_and_value(self, state):
-        if self.args.prior_source == "neural_net":
-            prior, value = self.rule_predictor.predict(
-                examples=[{"observation": state.observation}]
-            )
-        elif self.args.prior_source == "grammar":
-            prior = self.game.grammar.prior_dict[state.observation["last_symbol"]]
-            value = 0
-        elif self.args.prior_source == "uniform":
-            prior = self.game.grammar.prior_dict[state.observation["last_symbol"]]
-            value = 0
+        if self.args.prior_source == 'grammar':
+            prior = self.game.grammar.prior_dict[state.observation['last_symbol']]
+        elif self.args.prior_source == 'neural_net':
+            prior, value = self.rule_predictor.numpy(state.observation)
+        else:  # elif self.p_args.prior_source == 'uniform':
+            prior = self.game.grammar.prior_dict[state.observation['last_symbol']]
 
-        else:
-            raise NotImplementedError(
-                f"The prior for self.args.prior_source"
-                f"={self.args.prior_source} is not"
-                f"defined"
-            )
+        if self.args.prior_source != 'neural_net':
+            if self.args.env_str == "Equation":
+                value = self.rollout_equation(state)
+            else:
+                value = self.rollout_gym(state)
+
         return prior, value
 
-    def _search(
-        self,
-        state: GameState,
-        path: typing.Tuple[int, ...] = tuple(),
-    ) -> (float, bool):
+    def _search(self, state: GameState,
+                path: typing.Tuple[int, ...] = tuple(), ) -> (float, bool):
         """
         Recursively perform MCTS search inside the actual environments with
         search-paths guided by the PUCT formula.
@@ -243,32 +222,50 @@ class ClassicMCTS:
         """
         state_hash = self.game.getHash(state=state)
 
+        # terminate todo
+        if len(path) > self.game.max_path_length:
+            return self.args.minimum_reward
+
         # SELECT
         a = self.select_action_with_highest_upper_confidence_bound(state_hash)
         # EXPAND and SIMULATE
         if (state_hash, a) not in self.Ssa:
             # ask neural net what to do next
             value = self.rollout_for_valid_moves(
-                a=a, state_hash=state_hash, state=state, path=path
+                a=a,
+                state_hash=state_hash,
+                state=state,
+                path=path
             )
             pass
 
         elif not self.Ssa[(state_hash, a)].done:
             # walk known part of the net
-            value = self._search(state=self.Ssa[(state_hash, a)], path=path + (a,))
+            value = self._search(
+                state=self.Ssa[(state_hash, a)],
+                path=path + (a,)
+            )
 
         else:  # is in Ssa and done
             value = 0
             self.visits_done_state += 1
 
         # BACKUP
-        mct_return = self.backup(a=a, state_hash=state_hash, value=value)
+        mct_return = self.backup(
+            a=a,
+            state_hash=state_hash,
+            value=value
+        )
         return mct_return
 
-    def rollout_for_valid_moves(self, a, state_hash, state, path):
+    def rollout_for_valid_moves(self, a, state_hash,
+                                state, path):
         # explore new part of the tree
         value = 0
-        next_state, reward = self.game.getNextState(state=state, action=a)
+        next_state, reward = self.game.getNextState(
+            state=state,
+            action=a
+        )
         next_state_hash = self.game.getHash(state=next_state)
         # Transition statistics.
         self.Rsa[(state_hash, a)] = reward
@@ -280,39 +277,33 @@ class ClassicMCTS:
         if not next_state.done:
             # Build network input for inference.
             prior, value = self.get_prior_and_value(state=next_state)
-            if state.previous_state:
-                self.initial_Qsa[
-                    (state.previous_state.hash, state.production_action)
-                ] = value
             self.Ps[next_state_hash] = prior
             self.valid_moves_for_s[next_state_hash] = self.game.getLegalMoves(
                 state=next_state
             )
+            # todo maybe delete depth_first
             if self.args.depth_first_search:
-                value_search = self._search(state=next_state, path=path + (a,))
-                if self.args.risk_seeking:
-                    value = max(value_search, value)
-                else:
-                    value = (value_search + value) / 2
+                value_search = self._search(
+                    state=next_state,
+                    path=path + (a,)
+                )
+                value = (value_search + value) / 2
         else:
             # next state is done
-            if reward >= 0.999:
+            if reward >= 0.98:
                 self.states_explored_till_perfect_fit = len(self.times_s_was_visited)
         return value
 
     def backup(self, a, state_hash, value):
-        mct_return = (
-            self.Rsa[(state_hash, a)] + self.args.gamma * value
-        )  # (Discounted) Value of the current node
+        mct_return = self.Rsa[(state_hash, a)] + \
+                     self.args.gamma * value  # (Discounted) Value of the current node
         if (state_hash, a) in self.Qsa:
             if self.args.risk_seeking:
                 self.Qsa[(state_hash, a)] = max(self.Qsa[(state_hash, a)], mct_return)
             else:
-                self.Qsa[(state_hash, a)] = (
-                    self.times_edge_s_a_was_visited[(state_hash, a)]
-                    * self.Qsa[(state_hash, a)]
-                    + mct_return
-                ) / (self.times_edge_s_a_was_visited[(state_hash, a)] + 1)
+                self.Qsa[(state_hash, a)] = (self.times_edge_s_a_was_visited[(state_hash, a)] *
+                                             self.Qsa[(state_hash, a)] + mct_return) / \
+                                   (self.times_edge_s_a_was_visited[(state_hash, a)] + 1)
             self.times_edge_s_a_was_visited[(state_hash, a)] += 1
         else:
             self.Qsa[(state_hash, a)] = mct_return
@@ -321,20 +312,15 @@ class ClassicMCTS:
         return mct_return
 
     def select_action_with_highest_upper_confidence_bound(self, state_hash):
-        q_values = []
-        explorations = []
+        confidence_bounds = []
         for a in range(self.action_size):
-            q_value, exploration = self.compute_ucb(state_hash, a)
-            q_values.append(q_value)
-            explorations.append(exploration)
-        q_values = np.array(q_values)
-        explorations = np.array(explorations)
-        confidence_bounds = q_values + explorations
-
+            ucb = self.compute_ucb(state_hash, a)
+            confidence_bounds.append(ucb)
+        confidence_bounds = np.asarray(confidence_bounds)
         # Get masked argmax.
-        a = tie_breaking_argmax(
-            np.where(self.valid_moves_for_s[state_hash], confidence_bounds, -np.inf)
-        )  # never choose these actions!
+        a = tie_breaking_argmax(np.where(self.valid_moves_for_s[state_hash],
+                                         confidence_bounds,
+                                         -np.inf))  # never choose these actions!
         return a
 
     def compute_ucb(self, state_hash: bytes, a: int) -> float:
@@ -351,31 +337,24 @@ class ClassicMCTS:
         from path (s, a)
         :return: float Upper confidence bound with neural network prior
         """
-        if (
-            state_hash in self.valid_moves_for_s
-            and not self.valid_moves_for_s[state_hash][a]
-        ):
-            return 0.0, 0.0  # todo handle transpositions
+        if state_hash in self.valid_moves_for_s and not self.valid_moves_for_s[state_hash][a]:
+            return 0.0  # todo handle transpositions
 
         if (state_hash, a) in self.Qsa:
             times_s_a_visited = self.times_edge_s_a_was_visited[(state_hash, a)]
             q_value = self.Qsa[(state_hash, a)]
         else:
             times_s_a_visited = 0
-            q_value = 1
+            q_value = 0
 
         if self.args.use_puct:
             # Standard PUCT formula from the AlphaZero paper
-            exploration = (
-                self.args.c1
-                * self.Ps[state_hash][a]
-                * np.sqrt(self.times_s_was_visited[state_hash] + 1)
-                / (1 + times_s_a_visited)
-            )
+            exploration = self.args.c1 * self.Ps[state_hash][a] * np.sqrt(
+                self.times_s_was_visited[state_hash] + 1) / (1 + times_s_a_visited)
         else:
             # Standard UCT/UCB1 formula
             if times_s_a_visited == 0:
-                return np.inf
+                return 1e8
 
             if self.times_s_was_visited[state_hash] == 0:
                 denominator = 1.0
@@ -384,4 +363,36 @@ class ClassicMCTS:
 
             exploration = self.args.c1 * np.sqrt(denominator / times_s_a_visited)
 
-        return q_value, exploration
+        return q_value + exploration
+    
+    def rollout_gym(self, state):
+        env = copy.deepcopy(state.env)
+        done = state.done
+        ret = 0.0
+        gamma = 1.0
+
+        while not done:
+            _, r, term, trunc, __ = env.step(env.action_space.sample())
+            done = (term or trunc)
+            ret += gamma * r
+            gamma *= self.args.gamma
+        return ret
+
+    def rollout_equation(self, state):
+        ret = 0.0
+        gamma = 1.0
+        while not state.done:
+            possible_actions = state.syntax_tree.get_possible_moves(
+                node_id=state.syntax_tree.nodes_to_expand[0]
+            )
+            random_action = random.choice(possible_actions)
+            state, r = self.game.getNextState(
+                state=state,
+                action=random_action
+            )
+            ret += gamma * r
+            gamma *= self.args.gamma
+        return ret
+
+    def __del__(self):
+        self.clear_tree()

@@ -1,5 +1,5 @@
 import time
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
 import numpy as np
 from src.utils.parse_args import str2bool
@@ -7,7 +7,7 @@ from src.utils.parse_args import str2bool
 
 class Config:
     @classmethod
-    def arguments_parser(cls) -> ArgumentParser:
+    def arguments_parser(cls) -> Namespace:
         ### General
         parser = ArgumentParser(
             description="A MuZero and AlphaZero implementation in Tensorflow."
@@ -752,15 +752,21 @@ class Config:
         parser.add_argument(
             "--game",
             type=str,
-            choices=["bit_flip", "equation_discovery"],
+            choices=["bitflip", "equation_discovery"],
             default="equation_discovery",
             help="Which game type to choose",
         )
         parser.add_argument(
-            "--num_bits",
+            "--bitflip_num_bits",
             type=int,
             default=10,
             help="Size of the BitFlip environment",
+        )
+        parser.add_argument(
+            "--bitflip_max_steps",
+            type=int,
+            default=100,
+            help="Max amount of steps allowed in one BitFlip game",
         )
 
         args = parser.parse_args()

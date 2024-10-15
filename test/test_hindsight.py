@@ -1,8 +1,6 @@
 import unittest
 
 import pandas as pd
-
-from src.syntax_tree.syntax_tree import SyntaxTree
 from src.game.find_equation_game import FindEquationGame
 from pcfg import PCFG
 import tensorflow as tf
@@ -18,11 +16,9 @@ def get_empty_list(arg):
     return []
 
 
-class Test_Hindsightexperience_replay(unittest.TestCase):
+class TestHindsightExperienceReplay(unittest.TestCase):
     def setUp(self) -> None:
-        grammar_string = (
-            grammar_string
-        ) = """
+        grammar_string = """
                     S -> Constant [0.2]
                     S -> Variable [0.1]
                     S -> '+' S S [0.2]
@@ -77,13 +73,6 @@ class Test_Hindsightexperience_replay(unittest.TestCase):
         self.args.gamma = 1
         self.args.max_elements_in_best_list = 10
         self.args.build_syntax_tree_token_based = False
-
-    # def test_print(self):
-    #     syntax_tree = SyntaxTree(grammar=None, args=self.args)
-    #     syntax_tree.prefix_to_syntax_tree(prefix='+ 1 cos S_'.split())
-    #     syntax_tree.print()
-    #     y, equation = syntax_tree.rearrange_equation_infix_notation(new_start_node_id=-1)
-    #     print(equation)
 
     def test_hindsight(self):
         random.seed(42)

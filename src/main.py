@@ -6,19 +6,15 @@ https://github.com/kaesve/muzero
 """
 
 import warnings
-
-from src.neural_nets.bitflip_rule_predictor_skeleton import BitFlipRulePredictorSkeleton
-
-warnings.filterwarnings("ignore")
 import random
 from datetime import datetime
-from src.config_ngedn import Config
+from src.config import Config
 from src.coach import Coach
-from src.neural_nets.equation_rule_predictor_skeleton import (
-    EquationRulePredictorSkeleton,
-)
+from src.game.bitflip_env import BitFlipEnv
+from src.neural_nets.equation_rule_predictor_skeleton import EquationRulePredictorSkeleton
+from src.neural_nets.bitflip_rule_predictor_skeleton import BitFlipRulePredictorSkeleton
 from src.game.find_equation_game import FindEquationGame
-from src.game.bit_flip_game import BitFlipGame
+from src.game.gym_game import GymGame
 from src.mcts.classic_mcts import ClassicMCTS
 from src.mcts.amex_mcts import AmEx_MCTS
 import tensorflow as tf
@@ -28,7 +24,8 @@ from definitions import ROOT_DIR
 from src.utils.copy_weights import copy_dataset_encoder_weights_from_pretrained_agent
 from src.utils.get_grammar import get_grammar_from_string
 from src.generate_datasets.grammars import get_grammars
-from sys import argv
+
+warnings.filterwarnings("ignore")
 
 
 def run():
@@ -54,40 +51,30 @@ def run():
     tf.random.set_seed(args.seed)
     random.seed(args.seed)
 
-    # Set up tensorflow backend.
-    if int(args.gpu) >= 0:
-        device = tf.DeviceSpec(device_type="GPU", device_index=int(args.gpu))
-    else:
-        device = tf.DeviceSpec(device_type="CPU", device_index=0)
-
     grammar = get_grammar_from_string(
         string=get_grammars(args.grammar_search), args=args
     )
 
-    # preprocessor = get_preprocessor_class(args=args)
-    # reader_train = preprocessor(args=args, train_test_or_val='train')
-    # iter_train = reader_train.get_datasets()
-
     if args.game == "equation_discovery":
         game = FindEquationGame(grammar, args, train_test_or_val="train")
         game_test = FindEquationGame(grammar, args, train_test_or_val="test")
-    elif args.game == "bit_flip":
-        game = BitFlipGame(args)
-        game_test = BitFlipGame(args)
+    elif args.game == "bitflip":
+        game = GymGame(args, BitFlipEnv(args))
+        game_test = GymGame(args, BitFlipEnv(args))
     else:
         pass
 
-    learnA0(g=game, args=args, run_name=args.experiment_name, game_test=game_test)
-    wandb.log({f"sucessful": True})
+    learn_a0(game=game, args=args, run_name=args.experiment_name, game_test=game_test)
+    wandb.log({f"successful": True})
 
 
-def learnA0(g, args, run_name: str, game_test) -> None:
+def learn_a0(game, args, run_name: str, game_test) -> None:
     """
     Train an AlphaZero agent on the given environment with the specified configuration. If specified within the
     configuration file, the function will load in a previous model along with previously generated data.
     :param game_test:
     :param args:
-    :param g: Game Instance of a Game class that implements environment logic. Train agent on this environment.
+    :param game: Game Instance of a Game class that implements environment logic. Train agent on this environment.
     :param run_name: str Run name to store data by and annotate results.
     """
     print("Testing:", ", ".join(run_name.split("_")))
@@ -95,7 +82,7 @@ def learnA0(g, args, run_name: str, game_test) -> None:
     # Extract neural network and algorithm arguments separately
     if args.game == "equation_discovery":
         rule_predictor_train = EquationRulePredictorSkeleton(
-            args=args, reader_train=g.reader
+            args=args, reader_train=game.reader
         )
         rule_predictor_test = EquationRulePredictorSkeleton(
             args=args, reader_train=game_test.reader
@@ -107,10 +94,10 @@ def learnA0(g, args, run_name: str, game_test) -> None:
         pass
 
     checkpoint_train, manager_train = load_pretrained_net(
-        args=args, rule_predictor=rule_predictor_train, game=g
+        args=args, rule_predictor=rule_predictor_train, game=game
     )
     checkpoint_test, _ = load_pretrained_net(
-        args=args, rule_predictor=rule_predictor_test, game=g
+        args=args, rule_predictor=rule_predictor_test, game=game
     )
     if args.MCTS_engine == "Endgame":
         search_engine = AmEx_MCTS
@@ -120,7 +107,7 @@ def learnA0(g, args, run_name: str, game_test) -> None:
         raise AssertionError(f"Engine: {args.MCTS_engine} not defined!")
 
     c = Coach(
-        game=g,
+        game=game,
         game_test=game_test,
         rule_predictor=rule_predictor_train,
         rule_predictor_test=rule_predictor_test,
@@ -187,10 +174,10 @@ def initialize_net(args, checkpoint_current_model, game):
     net = checkpoint_current_model.net
 
     if isinstance(game, FindEquationGame):
-        iter = game.reader.get_datasets()
-        data_dict = next(iter)
+        iterator = game.reader.get_datasets()
+        data_dict = next(iterator)
         prepared_syntax_tree = [
-            np.zeros(shape=(args.max_tokens_equation), dtype=np.float32)
+            np.zeros(shape=args.max_tokens_equation, dtype=np.float32)
         ]
         net(
             input_encoder_tree=prepared_syntax_tree,
@@ -208,4 +195,3 @@ def get_run_name(config_name: str, architecture: str, game_name: str) -> str:
 
 if __name__ == "__main__":
     run()
-    # cProfile.run('run()', filename='profile.prof')
