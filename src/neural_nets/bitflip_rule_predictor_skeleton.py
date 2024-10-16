@@ -72,34 +72,22 @@ class BitFlipRulePredictorSkeleton(tf.keras.Model):
         target_vs,
     ):
         with tf.GradientTape(persistent=True) as tape:
-            action_prediction, v = self.net(input=representation)
+            action_prediction, v = self.net(nnet_input=representation)
 
             pi_batch_loss = loss.kl_divergence(real=target_pis, pred=action_prediction)
             v_batch_loss = loss.mean_square_error_loss_function(real=target_vs, pred=v)
 
-        variables_actor = [
-            resourceVariable for resourceVariable in self.net.actor.trainable_variables
+        variables = [
+            resourceVariable for resourceVariable in self.net.trainable_variables
         ]
-        gradients_actor = tape.gradient(pi_batch_loss, variables_actor)
-        gradients_actor = [
+        gradients = tape.gradient(pi_batch_loss, variables)
+        gradients = [
             check_for_non_numeric_and_replace_by_0(
                 logger=self.logger, tensor=x, name="target_pis"
             )
-            for x in gradients_actor
+            for x in gradients
         ]
-        self.optimizer_actor.apply_gradients(zip(gradients_actor, variables_actor))
-
-        variables_critic = [
-            resourceVariable for resourceVariable in self.net.critic.trainable_variables
-        ]
-        gradients_critic = tape.gradient(v_batch_loss, variables_critic)
-        gradients_critic = [
-            check_for_non_numeric_and_replace_by_0(
-                logger=self.logger, tensor=x, name="target_pis"
-            )
-            for x in gradients_critic
-        ]
-        self.optimizer_critic.apply_gradients(zip(gradients_critic, variables_critic))
+        self.optimizer_actor.apply_gradients(zip(gradients, variables))
 
         return pi_batch_loss, v_batch_loss
 

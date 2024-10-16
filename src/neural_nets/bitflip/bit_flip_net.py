@@ -25,7 +25,10 @@ class BitFlipNNet(tf.Module):
 
     def __call__(self, x, training):
 
-        x = tf.reshape(x, shape=(1, self.num_bits))
+        x = tf.expand_dims(
+            x,
+            axis=0,
+        )
         x = self.dense_1(x)
         pi = self.pi(x)
         v = self.v(x)
