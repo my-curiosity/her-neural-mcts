@@ -159,7 +159,7 @@ def get_rule_predictor_bitflip(args):
     rule_predictor = BitFlipRulePredictorNet(
         nnet_class=BitFlipNNet,
         nnet_args={
-            "num_bits": args.num_bits,
+            "num_bits": args.bitflip_num_bits,
             "name": "bitflip",
         },
         args=args,

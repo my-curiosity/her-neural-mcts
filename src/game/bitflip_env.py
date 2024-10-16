@@ -5,7 +5,12 @@ Simple BitFlip gym env, based on https://github.com/NervanaSystems/gym-bit-flip/
 import numpy as np
 import gym
 from gym import spaces
+from gym.envs.registration import register
 import random
+
+register(
+    id="bitflip", entry_point="src.game.bitflip_env:BitFlipEnv", max_episode_steps=100
+)
 
 
 class BitFlipEnv(gym.Env):
@@ -16,11 +21,7 @@ class BitFlipEnv(gym.Env):
         self.max_steps = args.bitflip_max_steps
 
         self.action_space = spaces.Discrete(self.num_bits)
-        self.observation_space = spaces.Dict(
-            {
-                "agent": spaces.Box(0, 1, shape=(self.num_bits,), dtype=int),
-                "target": spaces.Box(0, 1, shape=(self.num_bits,), dtype=int),
-            })
+        self.observation_space = spaces.Box(0, 1, shape=(self.num_bits,), dtype=int)
 
         self.steps = 0
         self.state = np.array([random.getrandbits(1) for _ in range(self.num_bits)])
@@ -48,10 +49,7 @@ class BitFlipEnv(gym.Env):
         return self._get_obs(), {}
 
     def _get_obs(self):
-        return {
-            'state': self.state,
-            'goal': self.goal,
-        }
+        return self.state
 
     def render(self):
         pass

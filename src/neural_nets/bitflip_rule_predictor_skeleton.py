@@ -32,7 +32,7 @@ class BitFlipRulePredictorSkeleton(tf.keras.Model):
         :param examples: a list of training examples of the form: (o_t, (pi_t, v_t), w_t)
         """
         self.net.training = True
-        representation, target_pis, target_vs = self.prepare_batch_for_NN(examples)
+        representation, target_pis, target_vs = self.prepare_batch_for_nn(examples)
         pi_batch_loss, v_batch_loss = self.train_step(
             representation=representation,
             target_pis=target_pis,
@@ -42,10 +42,10 @@ class BitFlipRulePredictorSkeleton(tf.keras.Model):
         self.steps += 1
         return pi_batch_loss, v_batch_loss, 0
 
-    def prepare_batch_for_NN(self, examples):
+    def prepare_batch_for_nn(self, examples):
         observations, loss_scale, target_pis, target_vs = [], [], [], []
         for example in examples:
-            observations.append(example["observation"])
+            observations.append(example["observation"]["obs"])
             if "probabilities_actor" in example:
                 target_pis.append(example["probabilities_actor"])
                 target_vs.append(example["observed_return"])
@@ -111,7 +111,7 @@ class BitFlipRulePredictorSkeleton(tf.keras.Model):
 
     def predict_with_loss(self, examples, with_loss=True):
         self.net.training = False
-        representation, target_pis, target_vs = self.prepare_batch_for_NN(examples)
+        representation, target_pis, target_vs = self.prepare_batch_for_nn(examples)
         action_prediction, v = self.net(nnet_input=representation)
         if with_loss:
             pi_batch_loss = loss.kl_divergence(real=target_pis, pred=action_prediction)

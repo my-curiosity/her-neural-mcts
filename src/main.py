@@ -7,11 +7,14 @@ https://github.com/kaesve/muzero
 
 import warnings
 import random
+import gym
 from datetime import datetime
 from src.config import Config
 from src.coach import Coach
-from src.game.bitflip_env import BitFlipEnv
-from src.neural_nets.equation_rule_predictor_skeleton import EquationRulePredictorSkeleton
+from src.game.bitflip_env import BitFlipEnv  # required for gym.make
+from src.neural_nets.equation_rule_predictor_skeleton import (
+    EquationRulePredictorSkeleton,
+)
 from src.neural_nets.bitflip_rule_predictor_skeleton import BitFlipRulePredictorSkeleton
 from src.game.find_equation_game import FindEquationGame
 from src.game.gym_game import GymGame
@@ -58,11 +61,15 @@ def run():
     if args.game == "equation_discovery":
         game = FindEquationGame(grammar, args, train_test_or_val="train")
         game_test = FindEquationGame(grammar, args, train_test_or_val="test")
-    elif args.game == "bitflip":
-        game = GymGame(args, BitFlipEnv(args))
-        game_test = GymGame(args, BitFlipEnv(args))
     else:
-        pass
+        game = GymGame(
+            args,
+            gym.make(id=args.game, max_episode_steps=args.bitflip_max_steps, args=args),
+        )
+        game_test = GymGame(
+            args,
+            gym.make(id=args.game, max_episode_steps=args.bitflip_max_steps, args=args),
+        )
 
     learn_a0(game=game, args=args, run_name=args.experiment_name, game_test=game_test)
     wandb.log({f"successful": True})
@@ -87,11 +94,12 @@ def learn_a0(game, args, run_name: str, game_test) -> None:
         rule_predictor_test = EquationRulePredictorSkeleton(
             args=args, reader_train=game_test.reader
         )
-    elif args.game == "bit_flip":
+    elif args.game == "bitflip":
         rule_predictor_train = BitFlipRulePredictorSkeleton(args=args)
         rule_predictor_test = BitFlipRulePredictorSkeleton(args=args)
     else:
-        pass
+        rule_predictor_train = None
+        rule_predictor_test = None
 
     checkpoint_train, manager_train = load_pretrained_net(
         args=args, rule_predictor=rule_predictor_train, game=game
@@ -140,7 +148,7 @@ def load_pretrained_net(args, rule_predictor, game):
     )
     initialize_net(args, checkpoint_current_model, game)
 
-    if len(args.path_to_complete_model) > 0:
+    if args.load_pretrained and len(args.path_to_complete_model) > 0:
         restore_path = ROOT_DIR / args.path_to_complete_model
         if restore_path.suffix != "":
             raise RuntimeError(
@@ -153,7 +161,7 @@ def load_pretrained_net(args, rule_predictor, game):
         checkpoint_current_model.restore(f"{restore_path}")
         print("Restored from {}".format(f"{ROOT_DIR / args.path_to_complete_model }"))
 
-    elif manager_train.latest_checkpoint:
+    elif args.load_pretrained and manager_train.latest_checkpoint:
         checkpoint_current_model.restore(
             manager_train.latest_checkpoint
         ).assert_consumed()

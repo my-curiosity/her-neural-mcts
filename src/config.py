@@ -769,6 +769,13 @@ class Config:
             help="Max amount of steps allowed in one BitFlip game",
         )
 
+        parser.add_argument(
+            "--load_pretrained",
+            type=str2bool,
+            default=False,
+            help="Set to true to use the saved models",
+        )
+
         args = parser.parse_args()
         if args.seed is None:
             args.seed = int(time.time())

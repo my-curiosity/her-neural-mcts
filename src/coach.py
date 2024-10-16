@@ -80,9 +80,9 @@ class Coach(ABC):
         # Initialize network and search engine
         self.rule_predictor = rule_predictor
         self.rule_predictor_test = rule_predictor_test
-        self.mcts = search_engine(self.game, self.rule_predictor, self.args)
+        self.mcts = search_engine(self.game, self.args, self.rule_predictor)
         self.mcts_test = search_engine(
-            self.game_test, self.rule_predictor_test, self.args
+            self.game_test, self.args, self.rule_predictor_test
         )
 
         if run_name is None:
@@ -224,7 +224,9 @@ class Coach(ABC):
         return history
 
     def get_mcts_action(self, mcts, mode, state, temp):
-        pi, v = mcts.run_mcts(state=state, temperature=temp)
+        pi, v = mcts.run_mcts(
+            state=state, num_mcts_sims=self.args.num_MCTS_sims, temperature=temp
+        )
         # Take a step in the environment and observe the transition and store necessary statistics.
         if mode == "test":
             state.action = np.argmax(pi)
@@ -241,7 +243,7 @@ class Coach(ABC):
                 self.logger.info(
                     f"     {str(game.grammar._productions[i]._rhs if isinstance(game, FindEquationGame) else None) :<120}|"
                     f" Ps: {round(mcts.Ps[initial_hash][i], 2):<10.2f}|"
-                    f"init. Qsa: {round(mcts.initial_Qsa[(initial_hash, i)], 2) if (initial_hash, i) in mcts.initial_Qsa else 0:<10}"
+                    # f"init. Qsa: {round(mcts.initial_Qsa[(initial_hash, i)], 2) if (initial_hash, i) in mcts.initial_Qsa else 0:<10}"
                     f" mcts: {round(history.probabilities[0][i], 2):<10}|"
                     f" Qsa: {round(mcts.Qsa[(initial_hash, i)], 2):<10}|"
                     f" #Ssa: {mcts.times_edge_s_a_was_visited[(initial_hash, i)]:<10}"
@@ -386,7 +388,7 @@ class Coach(ABC):
             )
             if metrics["mode"] == "train":  # self.args.hindsight_experience_replay and
                 self.logger.warning("start with hindsight")
-                self.add_hindsight_history(game, iteration_examples, mcts)
+                # self.add_hindsight_history(game, iteration_examples, mcts)
                 self.logger.warning("end hindsight")
 
         iteration_examples = self.augment_buffer(

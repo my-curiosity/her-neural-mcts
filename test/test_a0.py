@@ -84,7 +84,7 @@ class TestA0(unittest.TestCase):
             " --actor_decoder_normalize_way soft_max"
             " --critic_decoder_class mlp_decoder"
             " --critic_decoder_normalize_way tanh"
-            " --MCTS_engine Endgame"
+            " --MCTS_engine Normal"
             " --max_elements_in_best_list 10"
             " --prior_source neural_net"
             " --temp_0 0.5"
@@ -103,9 +103,10 @@ class TestA0(unittest.TestCase):
             " --max_percent_of_minimal_reward_runs_in_buffer 0.3"
             " --use-puct True"
             " --training_mode mcts"
-            " --hindsight_samples 1"
-            " --game equation_discovery"
+            " --hindsight_samples 0"
+            " --game bitflip"
             " --bitflip_num_bits 10"
             " --bitflip_max_steps 100"
+            " --load_pretrained False"
         ).split()
         run()
