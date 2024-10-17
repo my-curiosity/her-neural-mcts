@@ -64,14 +64,16 @@ class GymGame(Game):
     ) -> typing.Tuple[GameState, float]:
         env = copy.deepcopy(state.env)
         obs, reward, terminated, truncated, __ = env.step(action)
-        s = GymGameState(
+        next_state = GymGameState(
             env,
             {"last_symbol": "S", "obs": obs},
             production_action=action,
             previous_state=state,
             done=terminated or truncated,
         )
-        return s, reward
+        self.max_list.add(state=next_state, key=reward)
+        next_state.reward = reward
+        return next_state, reward
 
     def getLegalMoves(self, state: GameState) -> np.ndarray:
         if not state.done:

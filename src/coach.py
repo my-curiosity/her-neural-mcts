@@ -383,8 +383,6 @@ class Coach(ABC):
 
             metrics["best_reward_found"].update_state(
                 game.max_list.max_list_state[-1].reward
-                if len(game.max_list.max_list_state) > 0
-                else -1
             )
             if metrics["mode"] == "train":  # self.args.hindsight_experience_replay and
                 self.logger.warning("start with hindsight")

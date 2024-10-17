@@ -3,6 +3,7 @@ import tensorflow as tf
 
 class BitFlipNNet(tf.Module):
     def __init__(self, *args, **kwargs):
+        super().__init__()
         self.num_bits = kwargs["num_bits"]
         self.name_of_net = kwargs["name"]
         self.args = args

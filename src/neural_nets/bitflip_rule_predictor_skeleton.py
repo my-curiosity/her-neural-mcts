@@ -17,8 +17,7 @@ class BitFlipRulePredictorSkeleton(tf.keras.Model):
 
         self.net = get_rule_predictor_bitflip(args=args)
 
-        self.optimizer_actor = tf.keras.optimizers.Adam()
-        self.optimizer_critic = tf.keras.optimizers.Adam()
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
         self.args = args
 
         self.training = None
@@ -45,7 +44,14 @@ class BitFlipRulePredictorSkeleton(tf.keras.Model):
     def prepare_batch_for_nn(self, examples):
         observations, loss_scale, target_pis, target_vs = [], [], [], []
         for example in examples:
-            observations.append(example["observation"]["obs"])
+            observations.append(
+                np.concatenate(
+                    (
+                        example["observation"]["obs"]["state"],
+                        example["observation"]["obs"]["goal"],
+                    )
+                )
+            )
             if "probabilities_actor" in example:
                 target_pis.append(example["probabilities_actor"])
                 target_vs.append(example["observed_return"])
@@ -87,7 +93,7 @@ class BitFlipRulePredictorSkeleton(tf.keras.Model):
             )
             for x in gradients
         ]
-        self.optimizer_actor.apply_gradients(zip(gradients, variables))
+        self.optimizer.apply_gradients(zip(gradients, variables))
 
         return pi_batch_loss, v_batch_loss
 
