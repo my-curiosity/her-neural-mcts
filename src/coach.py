@@ -28,6 +28,8 @@ import time
 from datetime import datetime
 import tensorflow as tf
 import wandb
+
+from src.game.gym_game import GymGame
 from src.utils.logging import get_log_obj
 from src.utils.files import highest_number_in_files
 from definitions import ROOT_DIR
@@ -36,7 +38,7 @@ from src.preprocess_data.equation_preprocess_dummy import (
     equation_to_action_sequence,
     get_dict_token_to_action,
 )
-from src.hindsight.hindsight import Hindsight
+from src.hindsight.hindsight import Hindsight, add_final_trajectory_hindsight
 
 
 class Coach(ABC):
@@ -384,17 +386,27 @@ class Coach(ABC):
             metrics["best_reward_found"].update_state(
                 game.max_list.max_list_state[-1].reward
             )
-            if metrics["mode"] == "train":  # self.args.hindsight_experience_replay and
-                self.logger.warning("start with hindsight")
-                # self.add_hindsight_history(game, iteration_examples, mcts)
-                self.logger.warning("end hindsight")
+
+            # add hindsight histories to ER
+            if self.args.hindsight_samples > 0 and metrics["mode"] == "train":
+                if isinstance(game, GymGame):
+                    self.logger.warning("adding hindsight histories...")
+                    iteration_examples.extend(
+                        add_final_trajectory_hindsight(
+                            hindsight_samples=self.args.hindsight_samples,
+                            episode_history=result_episode,
+                            args=self.args,
+                        )
+                    )
+                else:
+                    pass
 
         iteration_examples = self.augment_buffer(
             iteration_examples, metrics, minimal_reward_runs, num_selfplay_iterations
         )
         return iteration_examples
 
-    def add_hindsight_history(self, game, iteration_train_examples, mcts):
+    def add_mcts_tree_hindsight(self, game, iteration_train_examples, mcts):
         hindsight = Hindsight(
             action_size=game.action_size,
             dataset_columns=game.dataset_columns,

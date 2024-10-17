@@ -11,7 +11,7 @@ class TestA0(unittest.TestCase):
 
     def test_a0_bitflip(self):
         sys.argv += (
-            " --experiment_name test_her_0_bitflip_10"
+            " --experiment_name test_her_1_bitflip_20"
             " --job_id 15559341"
             " --minutes_to_run 6800"
             " --max_iteration_to_run 100"
@@ -19,7 +19,7 @@ class TestA0(unittest.TestCase):
             " --only_test False"
             " --seed 1"
             " --logging_level 30"
-            " --wandb offline"
+            " --wandb online"
             " --gpu 0"
             " --data data_grammar_8/run_1"
             " --num_selfplay_iterations 50"
@@ -48,10 +48,10 @@ class TestA0(unittest.TestCase):
             " --max_percent_of_minimal_reward_runs_in_buffer 1"
             " --use-puct True"
             " --training_mode mcts"
-            " --hindsight_samples 0"
+            " --hindsight_samples 1"
             " --game bitflip"
-            " --bitflip_num_bits 10"
-            " --bitflip_max_steps 10"
+            " --bitflip_num_bits 20"
+            " --bitflip_max_steps 20"
             " --load_pretrained False"
         ).split()
         run()
