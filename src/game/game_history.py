@@ -16,7 +16,6 @@ class GameHistory:
     Data container for keeping track of game trajectories.
     """
 
-    states: list = field(default_factory=list)  # s_t: States
     observations: list = field(default_factory=list)  # o_t: State Observations
     players: list = field(default_factory=list)  # p_t: Current player
     probabilities: list = field(
@@ -42,7 +41,6 @@ class GameHistory:
 
     def capture(self, state: GameState, pi: np.ndarray, r: float, v: float) -> None:
         """Take a snapshot of the current state of the environment and the search results"""
-        self.states.append(state)
         self.observations.append(state.observation)
         self.actions.append(state.action)
         self.probabilities.append(pi)
@@ -50,7 +48,6 @@ class GameHistory:
         self.MCTS_value_estimation.append(v)
 
     def slice_from_index(self, index):
-        self.states = self.states[:index]
         self.observations = self.observations[:index]
         self.actions = self.actions[:index]
         self.probabilities = self.probabilities[:index]

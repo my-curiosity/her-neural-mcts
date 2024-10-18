@@ -285,6 +285,10 @@ class Coach(ABC):
         specified win/ lose ratio. Neural network weights and the replay buffer are stored after every iteration.
         Note that for highly granular vision based environments, that the replay buffer may grow to large sizes.
         """
+        self.logger.warning(
+            f"Starting with hindsight ({self.args.hindsight_samples} samples) ..."
+        )
+
         t_end = time.time() + 60 * self.args.minutes_to_run
         self.metrics_train = {
             "mode": "train",
@@ -390,9 +394,9 @@ class Coach(ABC):
             # add hindsight histories to ER
             if self.args.hindsight_samples > 0 and metrics["mode"] == "train":
                 if isinstance(game, GymGame):
-                    self.logger.warning("adding hindsight histories...")
                     iteration_examples.extend(
                         add_final_trajectory_hindsight(
+                            game=game,
                             hindsight_samples=self.args.hindsight_samples,
                             episode_history=result_episode,
                             args=self.args,

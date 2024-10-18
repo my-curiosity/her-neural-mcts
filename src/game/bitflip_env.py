@@ -38,10 +38,13 @@ class BitFlipEnv(gym.Env):
     def _terminated(self):
         return np.array_equal(self.state, self.goal) or self.steps >= self.max_steps
 
-    def reward(self, goal=None):
-        target = self.goal if goal is None else goal
+    def reward(self, state=None, goal=None):
+        state_checked = self.state if state is None else state
+        goal_checked = self.goal if goal is None else goal
         return (
-            self.max_reward if np.array_equal(self.state, target) else self.min_reward
+            self.max_reward
+            if np.array_equal(state_checked, goal_checked)
+            else self.min_reward
         )
 
     def step(self, action):
