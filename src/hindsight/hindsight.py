@@ -3,6 +3,7 @@ import random
 import numpy as np
 
 from src.game.bitflip_env import BitFlipEnv
+from src.game.game import GameState
 from src.game.game_history import GameHistory
 from src.syntax_tree.syntax_tree import SyntaxTree
 import copy
@@ -238,63 +239,69 @@ def check_for_first_state(state):
 
 
 def add_final_trajectory_hindsight(game, hindsight_samples, episode_history, args):
-    # create n * t copies of episode history
+    # create n * t copies of episode history for calculating new returns
     # = lists of observations, probabilities, values, rewards, actions, returns
-    hindsight_histories = [
+    histories = [
         [copy.deepcopy(episode_history) for _ in range(hindsight_samples)]
         for _ in range(len(episode_history.observations))
     ]
-    # for each state(observation) in episode
+    vi = []
+    # create a hindsight history for each sample goal
+    hindsight_histories = [GameHistory() for _ in range(hindsight_samples)]
+    # for each observation in episode
     for i in range(len(episode_history.observations)):
-        # find all future visited states
-        future_visited_observations = episode_history.observations[i + 1 :]
+        # find all future observations
+        future_observations = episode_history.observations[i + 1 :]
         # sample n virtual goals from them if possible
-        if len(future_visited_observations) > hindsight_samples:
-            virtual_goal_observations = random.sample(
-                list(enumerate(future_visited_observations, i + 1)), hindsight_samples
+        if len(future_observations) > hindsight_samples:
+            goal_observations = random.sample(
+                list(enumerate(future_observations, i + 1)), hindsight_samples
             )
+            vi.append(goal_observations[0][0])
             # for each virtual goal
-            for n in range(len(virtual_goal_observations)):
+            for n in range(len(goal_observations)):
                 # remove history after it
-                hindsight_histories[i][n].slice_from_index(
-                    virtual_goal_observations[n][0] + 1
-                )
-                # for each state in remaining history
-                for j in range(len(hindsight_histories[i][n].observations)):
-                    # relabel goal in observations
-                    relabel(
-                        args=args,
-                        observation=hindsight_histories[i][n].observations[j],
-                        hindsight_goal_observation=virtual_goal_observations[n][1],
-                    )
-                    # compute reward under current virtual goal and use it instead of the original
-                    hindsight_histories[i][n].rewards[j] = get_reward_with_goal(
+                histories[i][n].slice_from_index(goal_observations[n][0] + 1)
+                # for each observation in remaining history
+                for j in range(len(histories[i][n].observations)):
+                    # compute and set reward under current goal
+                    histories[i][n].rewards[j] = get_reward_with_goal(
                         args=args,
                         game=game,
-                        observation=hindsight_histories[i][n].observations[j],
-                        hindsight_goal_observation=virtual_goal_observations[n][1],
+                        observation=histories[i][n].observations[j],
+                        goal_observation=goal_observations[n][1],
                     )
-                else:
-                    # after the last state compute returns using new hindsight rewards
-                    hindsight_histories[i][n].compute_returns(args, gamma=args.gamma)
+                # at the end compute returns using new hindsight rewards
+                histories[i][n].compute_returns(args, gamma=args.gamma)
+                # create a new state with original observation and mcts probabilities
+                hindsight_state = GameState(
+                    syntax_tree=None,
+                    observation=episode_history.observations[i],
+                    production_action=episode_history.actions[i],
+                )
+                hindsight_state.action = None  # required for capturing state
 
-    return list(np.array(hindsight_histories).flat)
+                # save it to the new history
+                hindsight_histories[n].capture(
+                    state=hindsight_state,
+                    pi=episode_history.probabilities[i],
+                    # rewards are not used for training, we can also use r=0
+                    r=histories[i][n].rewards[i],
+                    v=0,
+                )
+                # copy the calculated hindsight return for it
+                hindsight_histories[n].observed_returns.append(
+                    histories[i][n].observed_returns[i]
+                )
+
+    return hindsight_histories
 
 
-def relabel(args, observation, hindsight_goal_observation=None):
-    if args.game == "bitflip":
-        observation["obs"]["goal"] = hindsight_goal_observation["obs"]["state"]
-    else:
-        pass
-
-
-def get_reward_with_goal(
-    args, game, observation, hindsight_goal_observation=None
-):
+def get_reward_with_goal(args, game, observation, goal_observation=None):
     if args.game == "bitflip":
         return game.env.reward(
             state=observation["obs"]["state"],
-            goal=hindsight_goal_observation["obs"]["state"],
+            goal=goal_observation["obs"]["state"],
         )
     else:
         pass

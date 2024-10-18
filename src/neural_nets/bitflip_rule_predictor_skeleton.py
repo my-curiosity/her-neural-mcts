@@ -44,14 +44,7 @@ class BitFlipRulePredictorSkeleton(tf.keras.Model):
     def prepare_batch_for_nn(self, examples):
         observations, loss_scale, target_pis, target_vs = [], [], [], []
         for example in examples:
-            observations.append(
-                np.concatenate(
-                    (
-                        example["observation"]["obs"]["state"],
-                        example["observation"]["obs"]["goal"],
-                    )
-                )
-            )
+            observations.append(example["observation"]["obs"]["state"])
             if "probabilities_actor" in example:
                 target_pis.append(example["probabilities_actor"])
                 target_vs.append(example["observed_return"])
