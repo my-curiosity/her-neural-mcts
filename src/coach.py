@@ -397,9 +397,9 @@ class Coach(ABC):
                     iteration_examples.extend(
                         add_final_trajectory_hindsight(
                             game=game,
-                            hindsight_samples=self.args.hindsight_samples,
+                            num_hindsight_samples=self.args.hindsight_samples,
                             episode_history=result_episode,
-                            args=self.args,
+                            gamma=self.args.gamma,
                         )
                     )
                 else:
