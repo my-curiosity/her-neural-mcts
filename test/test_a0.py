@@ -45,7 +45,6 @@ class TestA0(unittest.TestCase):
             " --prioritize False"
             " --selfplay_buffer_window 50"
             " --balance_buffer False"
-            " --max_percent_of_minimal_reward_runs_in_buffer 1"
             " --use-puct True"
             " --training_mode mcts"
             " --hindsight_samples 1"

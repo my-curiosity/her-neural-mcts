@@ -245,7 +245,6 @@ def add_final_trajectory_hindsight(game, hindsight_samples, episode_history, arg
         [copy.deepcopy(episode_history) for _ in range(hindsight_samples)]
         for _ in range(len(episode_history.observations))
     ]
-    vi = []
     # create a hindsight history for each sample goal
     hindsight_histories = [GameHistory() for _ in range(hindsight_samples)]
     # for each observation in episode
@@ -257,7 +256,6 @@ def add_final_trajectory_hindsight(game, hindsight_samples, episode_history, arg
             goal_observations = random.sample(
                 list(enumerate(future_observations, i + 1)), hindsight_samples
             )
-            vi.append(goal_observations[0][0])
             # for each virtual goal
             for n in range(len(goal_observations)):
                 # remove history after it
@@ -273,17 +271,10 @@ def add_final_trajectory_hindsight(game, hindsight_samples, episode_history, arg
                     )
                 # at the end compute returns using new hindsight rewards
                 histories[i][n].compute_returns(args, gamma=args.gamma)
-                # create a new state with original observation and mcts probabilities
-                hindsight_state = GameState(
-                    syntax_tree=None,
+                # save a state with original observation and mcts probabilities to the new history
+                hindsight_histories[n].capture_with_observation(
                     observation=episode_history.observations[i],
-                    production_action=episode_history.actions[i],
-                )
-                hindsight_state.action = None  # required for capturing state
-
-                # save it to the new history
-                hindsight_histories[n].capture(
-                    state=hindsight_state,
+                    action=None,
                     pi=episode_history.probabilities[i],
                     # rewards are not used for training, we can also use r=0
                     r=histories[i][n].rewards[i],
@@ -293,7 +284,6 @@ def add_final_trajectory_hindsight(game, hindsight_samples, episode_history, arg
                 hindsight_histories[n].observed_returns.append(
                     histories[i][n].observed_returns[i]
                 )
-
     return hindsight_histories
 
 

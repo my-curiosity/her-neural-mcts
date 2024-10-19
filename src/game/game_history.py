@@ -47,6 +47,16 @@ class GameHistory:
         self.rewards.append(r)
         self.MCTS_value_estimation.append(v)
 
+    def capture_with_observation(
+        self, observation, action, pi: np.ndarray, r: float, v: float
+    ) -> None:
+        """Take a snapshot of the current state of the environment and the search results"""
+        self.observations.append(observation)
+        self.actions.append(action)
+        self.probabilities.append(pi)
+        self.rewards.append(r)
+        self.MCTS_value_estimation.append(v)
+
     def slice_from_index(self, index):
         self.observations = self.observations[:index]
         self.actions = self.actions[:index]
