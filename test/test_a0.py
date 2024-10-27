@@ -35,7 +35,7 @@ class TestA0(unittest.TestCase):
             " --MCTS_engine Normal"
             " --max_elements_in_best_list 10"
             " --prior_source neural_net"
-            " --temp_0 0.5"
+            " --temp_0 1"
             " --temperature_decay 0"
             " --num_MCTS_sims 20"
             " --c1 2"
