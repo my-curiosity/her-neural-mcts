@@ -1,5 +1,3 @@
-from src.neural_nets.bitflip.bit_flip_net import BitFlipNNet
-from src.neural_nets.bitflip_rule_predictor_net import BitFlipRulePredictorNet
 from src.neural_nets.equation_encoder.equation_encoder_dummy import EquationEncoderDummy
 from src.neural_nets.equation_encoder.transformer_encoder_string import (
     TransformerEncoderString,
@@ -149,18 +147,6 @@ def get_rule_predictor_equation(args, reader_data):
             "batch_sz": 1,
             "normalize_way": args.critic_decoder_normalize_way,
             "name": "critic",
-        },
-        args=args,
-    )
-    return rule_predictor
-
-
-def get_rule_predictor_bitflip(args):
-    rule_predictor = BitFlipRulePredictorNet(
-        nnet_class=BitFlipNNet,
-        nnet_args={
-            "num_bits": args.bitflip_num_bits,
-            "name": "bitflip",
         },
         args=args,
     )

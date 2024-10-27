@@ -1,40 +1,29 @@
-import tensorflow as tf
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import (
+    Activation,
+    BatchNormalization,
+    Dense,
+    Input,
+)
+from tensorflow.keras.optimizers import Adam
 
 
-class BitFlipNNet(tf.Module):
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-        self.num_bits = kwargs["num_bits"]
-        self.name_of_net = kwargs["name"]
+class BitFlipNNet:
+    def create_model(self):
+        inputs = Input(shape=(2 * self.num_bits))
+
+        shared = Activation("relu")((Dense(20)(inputs)))
+        pi = Dense(self.action_size, activation="softmax", name="pi")(shared)
+        v = Dense(1, activation="tanh", name="v")(shared)
+
+        return Model(inputs=inputs, outputs=[pi, v])
+
+    def __init__(self, game, args):
+        self.num_bits = self.action_size = game.getActionSize()
         self.args = args
 
-        self.dense_1 = tf.keras.layers.Dense(
-            units=20,
-            activation="relu",
-            dtype=tf.float32,
-            name=f"{kwargs['name']}_Dense_1",
+        self.model = self.create_model()
+        self.model.compile(
+            loss=["categorical_crossentropy", "mean_squared_error"],
+            optimizer=Adam(learning_rate=0.0005),
         )
-        self.pi = tf.keras.layers.Dense(
-            units=self.num_bits,
-            activation="softmax",
-            dtype=tf.float32,
-            name=f"{kwargs['name']}_pi",
-        )
-        self.v = tf.keras.layers.Dense(
-            units=1, activation="tanh", dtype=tf.float32, name=f"{kwargs['name']}_v"
-        )
-
-    def __call__(self, x, training):
-
-        x = tf.expand_dims(
-            x,
-            axis=0,
-        )
-        x = self.dense_1(x)
-        pi = self.pi(x)
-        v = self.v(x)
-
-        return pi, v
-
-    def __str__(self):
-        return f"BitFlip_MLP_{self.name_of_net}"

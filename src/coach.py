@@ -330,7 +330,7 @@ class Coach(ABC):
                     )
                     self.saveTrainExamples(int(self.checkpoint.step))
                 if self.args.prior_source in "neural_net":
-                    if self.checkpoint.step > self.args.cold_start_iterations:
+                    if int(self.checkpoint.step) > self.args.cold_start_iterations:
                         self.update_network()
                     save_path = self.checkpoint_manager.save(check_interval=True)
                     self.logger.debug(

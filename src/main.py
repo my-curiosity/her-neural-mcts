@@ -95,8 +95,8 @@ def learn_a0(game, args, run_name: str, game_test) -> None:
             args=args, reader_train=game_test.reader
         )
     elif args.game == "bitflip":
-        rule_predictor_train = BitFlipRulePredictorSkeleton(args=args)
-        rule_predictor_test = BitFlipRulePredictorSkeleton(args=args)
+        rule_predictor_train = BitFlipRulePredictorSkeleton(game=game, args=args)
+        rule_predictor_test = BitFlipRulePredictorSkeleton(game=game, args=args)
     else:
         rule_predictor_train = None
         rule_predictor_test = None
@@ -132,7 +132,11 @@ def learn_a0(game, args, run_name: str, game_test) -> None:
 
 def load_pretrained_net(args, rule_predictor, game):
     experiment_name = f"{args.experiment_name}/{args.seed}"
-    net = rule_predictor.net
+    net = (
+        rule_predictor.net
+        if args.game == "equation_discovery"
+        else rule_predictor.net.model
+    )
     checkpoint_path_current_model = (
         ROOT_DIR / "saved_models" / args.data_path / experiment_name
     )
