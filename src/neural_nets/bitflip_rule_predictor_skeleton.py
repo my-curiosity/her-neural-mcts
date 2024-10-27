@@ -86,7 +86,9 @@ class BitFlipRulePredictorSkeleton(tf.keras.Model):
         variables = [
             resourceVariable for resourceVariable in self.net.trainable_variables
         ]
-        gradients = tape.gradient(pi_batch_loss, variables)
+        gradients = tape.gradient(
+            target=[pi_batch_loss, v_batch_loss], sources=variables
+        )
         gradients = [
             check_for_non_numeric_and_replace_by_0(
                 logger=self.logger, tensor=x, name="target_pis"
