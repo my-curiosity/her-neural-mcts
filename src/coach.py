@@ -285,7 +285,7 @@ class Coach(ABC):
         specified win/ lose ratio. Neural network weights and the replay buffer are stored after every iteration.
         Note that for highly granular vision based environments, that the replay buffer may grow to large sizes.
         """
-        self.logger.warning(
+        self.logger.info(
             f"Starting with hindsight ({self.args.hindsight_samples} samples) ..."
         )
 
@@ -404,6 +404,8 @@ class Coach(ABC):
                     )
                 else:
                     pass
+
+            self.logger.info(f"Game #{i} finished ...")
 
         iteration_examples = self.augment_buffer(
             iteration_examples, metrics, minimal_reward_runs, num_selfplay_iterations

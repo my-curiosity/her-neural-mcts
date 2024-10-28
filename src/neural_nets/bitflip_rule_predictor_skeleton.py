@@ -91,7 +91,7 @@ class BitFlipRulePredictorSkeleton(tf.keras.Model):
         )
         gradients = [
             check_for_non_numeric_and_replace_by_0(
-                logger=self.logger, tensor=x, name="target_pis"
+                logger=self.logger, tensor=x, name="targets"
             )
             for x in gradients
         ]

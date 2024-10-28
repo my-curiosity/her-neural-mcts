@@ -11,15 +11,15 @@ class TestA0(unittest.TestCase):
 
     def test_a0_bitflip(self):
         sys.argv += (
-            " --experiment_name test_her_1_bitflip_20"
+            " --experiment_name test_her_1_bitflip_30"
             " --job_id 15559341"
             " --minutes_to_run 6800"
-            " --max_iteration_to_run 100"
+            " --max_iteration_to_run 300"
             " --sec_per_simulation -1"
             " --only_test False"
             " --seed 1"
             " --logging_level 30"
-            " --wandb online"
+            " --wandb offline"
             " --gpu 0"
             " --data data_grammar_8/run_1"
             " --num_selfplay_iterations 50"
@@ -49,8 +49,8 @@ class TestA0(unittest.TestCase):
             " --training_mode mcts"
             " --hindsight_samples 1"
             " --game bitflip"
-            " --bitflip_num_bits 20"
-            " --bitflip_max_steps 20"
+            " --bitflip_num_bits 30"
+            " --bitflip_max_steps 30"
             " --load_pretrained False"
         ).split()
         run()
