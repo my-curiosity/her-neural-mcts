@@ -285,7 +285,7 @@ class Coach(ABC):
         specified win/ lose ratio. Neural network weights and the replay buffer are stored after every iteration.
         Note that for highly granular vision based environments, that the replay buffer may grow to large sizes.
         """
-        self.logger.info(
+        self.logger.warning(
             f"Starting with hindsight ({self.args.hindsight_samples} samples) ..."
         )
 
@@ -293,11 +293,15 @@ class Coach(ABC):
         self.metrics_train = {
             "mode": "train",
             "best_reward_found": tf.keras.metrics.Mean(dtype=tf.float32),
+            "return": tf.keras.metrics.Mean(dtype=tf.float32),
+            "percent_solved": tf.keras.metrics.Mean(dtype=tf.float32),
             "done_rollout_ratio": tf.keras.metrics.Mean(dtype=tf.float32),
         }
         self.metrics_test = {
             "mode": "test",
             "best_reward_found": tf.keras.metrics.Mean(dtype=tf.float32),
+            "return": tf.keras.metrics.Mean(dtype=tf.float32),
+            "percent_solved": tf.keras.metrics.Mean(dtype=tf.float32),
             "done_rollout_ratio": tf.keras.metrics.Mean(dtype=tf.float32),
         }
         self.loadTrainExamples(int(self.checkpoint.step))
@@ -322,6 +326,12 @@ class Coach(ABC):
                             f"iteration": self.checkpoint.step,
                             f"average_reward_iteration_{self.metrics_train['mode']}": self.metrics_train[
                                 "best_reward_found"
+                            ].result(),
+                            f"average_return_iteration_{self.metrics_train['mode']}": self.metrics_train[
+                                "return"
+                            ].result(),
+                            f"percent_solved_{self.metrics_train['mode']}": self.metrics_train[
+                                "percent_solved"
                             ].result(),
                             f"average_done_rollout_ratio_iteration_{self.metrics_train['mode']}": self.metrics_train[
                                 "done_rollout_ratio"
@@ -377,6 +387,8 @@ class Coach(ABC):
         iteration_examples = list()
         metrics["best_reward_found"].reset_state()
         metrics["done_rollout_ratio"].reset_state()
+        metrics["return"].reset_state()
+        metrics["percent_solved"].reset_state()
         minimal_reward_runs = 0
         for i in range(num_selfplay_iterations):
             mcts.clear_tree()
@@ -389,6 +401,10 @@ class Coach(ABC):
 
             metrics["best_reward_found"].update_state(
                 game.max_list.max_list_state[-1].reward
+            )
+            metrics["return"].update_state(result_episode.observed_returns[0])
+            metrics["percent_solved"].update_state(
+                100 if result_episode.rewards[-1] == self.args.maximum_reward else 0
             )
 
             # add hindsight histories to ER
@@ -405,7 +421,7 @@ class Coach(ABC):
                 else:
                     pass
 
-            self.logger.info(f"Game #{i} finished ...")
+            self.logger.warning(f"Game #{i} finished ...")
 
         iteration_examples = self.augment_buffer(
             iteration_examples, metrics, minimal_reward_runs, num_selfplay_iterations
