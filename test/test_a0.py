@@ -11,7 +11,7 @@ class TestA0(unittest.TestCase):
 
     def test_a0_bitflip(self):
         sys.argv += (
-            " --experiment_name test_her_1_bitflip_20"
+            " --experiment_name test_her_0_bitflip_7"
             " --job_id 15559341"
             " --minutes_to_run 6800"
             " --max_iteration_to_run 100"
@@ -24,14 +24,14 @@ class TestA0(unittest.TestCase):
             " --data data_grammar_8/run_1"
             " --num_selfplay_iterations 50"
             " --num_selfplay_iterations_test 10"
-            " --test_network True"
+            " --test_network False"
             " --test_every_n_steps 10"
             " --minimum_reward -1"
             " --maximum_reward 1"
             " --batch_size_training 256"
             " --num_gradient_steps 40"
             " --average_policy_if_wrong False"
-            " --cold_start_iterations 10"
+            " --cold_start_iterations 0"
             " --MCTS_engine Normal"
             " --max_elements_in_best_list 10"
             " --prior_source neural_net"
@@ -47,10 +47,10 @@ class TestA0(unittest.TestCase):
             " --balance_buffer False"
             " --use-puct True"
             " --training_mode mcts"
-            " --hindsight_samples 1"
+            " --hindsight_samples 0"
             " --game bitflip"
-            " --bitflip_num_bits 20"
-            " --bitflip_max_steps 20"
+            " --bitflip_num_bits 7"
+            " --bitflip_max_steps 7"
             " --load_pretrained False"
         ).split()
         run()

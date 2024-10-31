@@ -1,5 +1,5 @@
 import typing
-
+import tensorflow as tf
 from src.neural_nets.bitflip.bit_flip_net import BitFlipNNet
 import numpy as np
 from src.utils.logging import get_log_obj
@@ -53,15 +53,26 @@ class BitFlipRulePredictorSkeleton:
         :param examples: a list of training examples of the form: (o_t, (pi_t, v_t), w_t)
         """
         inputs, target_pis, target_vs = prepare_batch_for_training(examples)
+
         metrics = self.net.model.fit(
             x=inputs,
             y=[target_pis, target_vs],
             batch_size=self.args.batch_size_training,
-            epochs=1,
+            epochs=self.args.num_gradient_steps,
+            verbose=False,
         )
-        return metrics.history["pi_loss"][0], metrics.history["v_loss"][0], 0
+        return (
+            sum(metrics.history["pi_loss"]) / self.args.num_gradient_steps,
+            sum(metrics.history["v_loss"]) / self.args.num_gradient_steps,
+            0,
+        )
 
     def predict(self, examples):
         inputs = prepare_for_prediction(examples)
-        pi, v = self.net.model.predict(inputs, verbose=False)
-        return pi[0], v[0][0]
+        pi, v = self.tf_predict(inputs)
+        return pi.numpy()[0], v.numpy()[0][0]
+
+    @tf.function
+    def tf_predict(self, inputs):
+        pi, v = self.net.model(inputs, training=False)
+        return pi, v

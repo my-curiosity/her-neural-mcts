@@ -10,16 +10,19 @@ from tensorflow.keras.optimizers import Adam
 
 class BitFlipNNet:
     def create_model(self):
-        inputs = Input(shape=(2 * self.num_bits))
+        inputs = Input(shape=(2 * self.action_size))
 
-        shared = Activation("relu")((Dense(20)(inputs)))
-        pi = Dense(self.action_size, activation="softmax", name="pi")(shared)
-        v = Dense(1, activation="tanh", name="v")(shared)
+        fc1 = Activation("relu")(BatchNormalization(axis=1)(Dense(128)(inputs)))
+        fc2 = Activation("relu")(BatchNormalization(axis=1)(Dense(128)(fc1)))
+        fc3 = Activation("relu")(BatchNormalization(axis=1)(Dense(64)(fc2)))
+
+        pi = Dense(self.action_size, activation="softmax", name="pi")(fc3)
+        v = Dense(1, activation="tanh", name="v")(fc3)
 
         return Model(inputs=inputs, outputs=[pi, v])
 
     def __init__(self, game, args):
-        self.num_bits = self.action_size = game.getActionSize()
+        self.action_size = game.getActionSize()
         self.args = args
 
         self.model = self.create_model()

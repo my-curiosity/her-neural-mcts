@@ -172,7 +172,7 @@ def load_pretrained_net(args, rule_predictor, game):
 
         print("Restored from {}".format(manager_train.latest_checkpoint))
     else:
-        checkpoint_current_model.restore(manager_train.latest_checkpoint)
+        # checkpoint_current_model.restore(manager_train.latest_checkpoint)
         print("Initializing from scratch.")
 
     copy_dataset_encoder_weights_from_pretrained_agent(

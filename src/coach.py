@@ -293,14 +293,19 @@ class Coach(ABC):
         self.metrics_train = {
             "mode": "train",
             "best_reward_found": tf.keras.metrics.Mean(dtype=tf.float32),
+            "return": tf.keras.metrics.Mean(dtype=tf.float32),
+            "percent_solved": tf.keras.metrics.Mean(dtype=tf.float32),
             "done_rollout_ratio": tf.keras.metrics.Mean(dtype=tf.float32),
         }
         self.metrics_test = {
             "mode": "test",
             "best_reward_found": tf.keras.metrics.Mean(dtype=tf.float32),
+            "return": tf.keras.metrics.Mean(dtype=tf.float32),
+            "percent_solved": tf.keras.metrics.Mean(dtype=tf.float32),
             "done_rollout_ratio": tf.keras.metrics.Mean(dtype=tf.float32),
         }
-        self.loadTrainExamples(int(self.checkpoint.step))
+        if self.args.load_pretrained:
+            self.loadTrainExamples(int(self.checkpoint.step))
         while self.checkpoint.step < self.args.max_iteration_to_run:
             self.logger.warning(
                 f"------------------ITER"
@@ -323,21 +328,29 @@ class Coach(ABC):
                             f"average_reward_iteration_{self.metrics_train['mode']}": self.metrics_train[
                                 "best_reward_found"
                             ].result(),
+                            f"average_return_iteration_{self.metrics_train['mode']}": self.metrics_train[
+                                "return"
+                            ].result(),
+                            f"percent_solved_{self.metrics_train['mode']}": self.metrics_train[
+                                "percent_solved"
+                            ].result(),
                             f"average_done_rollout_ratio_iteration_{self.metrics_train['mode']}": self.metrics_train[
                                 "done_rollout_ratio"
                             ].result(),
                         }
                     )
                     self.saveTrainExamples(int(self.checkpoint.step))
-                if self.args.prior_source in "neural_net":
-                    if int(self.checkpoint.step) > self.args.cold_start_iterations:
-                        self.update_network()
-                    save_path = self.checkpoint_manager.save(check_interval=True)
-                    self.logger.debug(
-                        f"Saved checkpoint for epoch {int(self.checkpoint.step)}: {save_path}"
-                    )
-                else:
-                    save_path = self.checkpoint_manager.save(check_interval=True)
+
+                if (
+                    self.args.prior_source == "neural_net"
+                    and int(self.checkpoint.step) >= self.args.cold_start_iterations
+                ):
+                    self.update_network()
+
+                save_path = self.checkpoint_manager.save(check_interval=True)
+                self.logger.debug(
+                    f"Saved checkpoint for epoch {int(self.checkpoint.step)}: {save_path}"
+                )
             if (
                 self.args.test_network
                 and self.checkpoint.step % self.args.test_every_n_steps == 0
@@ -350,26 +363,15 @@ class Coach(ABC):
         complete_history = GameHistory.flatten(self.trainExamplesHistory)
         logging.warning(f"Number of samples in Replay buffer {len(complete_history)}")
         # Backpropagation
-        train_pi_loss = 0
-        train_v_loss = 0
-        train_contrastive_loss = 0
-        for _ in trange(
-            self.args.num_gradient_steps, desc="Backpropagation", file=sys.stdout
-        ):
-            batch = self.sampleBatch(complete_history)
-            pi_batch_loss, v_batch_loss, contrastive_loss = self.rule_predictor.train(
-                batch
-            )
-            train_pi_loss += pi_batch_loss
-            train_v_loss += v_batch_loss
-            train_contrastive_loss += contrastive_loss
+        # TODO: how to do multiple gradient steps in a single train() call for equations?
+        batch = self.sampleBatch(complete_history)
+        pi_batch_loss, v_batch_loss, contrastive_loss = self.rule_predictor.train(batch)
         wandb.log(
             {
                 f"iteration": self.checkpoint.step,
-                f"Pi loss": train_pi_loss / self.args.num_gradient_steps,
-                "V loss": train_v_loss / self.args.num_gradient_steps,
-                "Contrastive loss": train_contrastive_loss
-                / self.args.num_gradient_steps,
+                f"Pi loss": pi_batch_loss,
+                "V loss": v_batch_loss,
+                "Contrastive loss": contrastive_loss,
             }
         )
 
@@ -377,6 +379,8 @@ class Coach(ABC):
         iteration_examples = list()
         metrics["best_reward_found"].reset_state()
         metrics["done_rollout_ratio"].reset_state()
+        metrics["return"].reset_state()
+        metrics["percent_solved"].reset_state()
         minimal_reward_runs = 0
         for i in range(num_selfplay_iterations):
             mcts.clear_tree()
@@ -390,20 +394,21 @@ class Coach(ABC):
             metrics["best_reward_found"].update_state(
                 game.max_list.max_list_state[-1].reward
             )
+            metrics["return"].update_state(result_episode.observed_returns[0])
+            metrics["percent_solved"].update_state(
+                100 if result_episode.rewards[-1] == self.args.maximum_reward else 0
+            )
 
             # add hindsight histories to ER
             if self.args.hindsight_samples > 0 and metrics["mode"] == "train":
-                if isinstance(game, GymGame):
-                    iteration_examples.extend(
-                        add_final_trajectory_hindsight(
-                            game=game,
-                            num_hindsight_samples=self.args.hindsight_samples,
-                            episode_history=result_episode,
-                            gamma=self.args.gamma,
-                        )
+                iteration_examples.extend(
+                    add_final_trajectory_hindsight(
+                        game=game,
+                        num_hindsight_samples=self.args.hindsight_samples,
+                        episode_history=result_episode,
+                        gamma=self.args.gamma,
                     )
-                else:
-                    pass
+                )
 
         iteration_examples = self.augment_buffer(
             iteration_examples, metrics, minimal_reward_runs, num_selfplay_iterations
