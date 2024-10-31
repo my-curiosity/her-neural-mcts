@@ -410,6 +410,8 @@ class Coach(ABC):
                     )
                 )
 
+            self.logger.warning(f"Game #{i} finished ...")
+
         iteration_examples = self.augment_buffer(
             iteration_examples, metrics, minimal_reward_runs, num_selfplay_iterations
         )

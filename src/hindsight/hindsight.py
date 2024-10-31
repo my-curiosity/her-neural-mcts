@@ -254,9 +254,15 @@ def add_final_trajectory_hindsight(game, num_hindsight_samples, episode_history,
             )
             # for each virtual goal
             for g in range(len(goal_observations)):
-                # save original observation and mcts probabilities to hindsight history
-                hindsight_histories[g].capture_with_observation(
+                # change original observation goal
+                relabeled_observation = relabel_observation_goal(
+                    game=game,
                     observation=episode_history.observations[i],
+                    hindsight_goal_observation=goal_observations[g],
+                )
+                # save relabeled observation and original mcts probabilities to hindsight history
+                hindsight_histories[g].capture_with_observation(
+                    observation=relabeled_observation,
                     pi=episode_history.probabilities[i],
                     action=None,
                     r=0,
@@ -292,6 +298,17 @@ def compute_hindsight_return(
         )
     # calculate total return for state
     return compute_return_from_rewards_list(gamma, hindsight_rewards)
+
+
+def relabel_observation_goal(game, observation, hindsight_goal_observation):
+    relabeled_observation = copy.deepcopy(observation)
+    if game.env.spec.id == "bitflip":
+        relabeled_observation["obs"]["goal"] = hindsight_goal_observation["obs"][
+            "state"
+        ]
+        return relabeled_observation
+    else:
+        raise NotImplementedError()
 
 
 def get_reward_with_goal(game, observation, goal_observation=None):
