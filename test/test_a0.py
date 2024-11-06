@@ -11,7 +11,7 @@ class TestA0(unittest.TestCase):
 
     def test_a0_bitflip(self):
         sys.argv += (
-            " --experiment_name test_her_4_bitflip_20"
+            " --experiment_name test_her_4_bitflip_20_onehot_future"
             " --job_id 15559341"
             " --minutes_to_run 6800"
             " --max_iteration_to_run 100"
@@ -48,6 +48,7 @@ class TestA0(unittest.TestCase):
             " --training_mode mcts"
             " --hindsight_samples 4"
             " --hindsight_policy one_hot"
+            " --hindsight_goal_selection future"
             " --game bitflip"
             " --bitflip_num_bits 20"
             " --bitflip_max_steps 20"

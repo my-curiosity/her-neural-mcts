@@ -755,6 +755,13 @@ class Config:
             default="original",
             help="Which policy to use in hindsight samples",
         )
+        parser.add_argument(
+            "--hindsight_goal_selection",
+            type=str,
+            choices=["future", "final"],
+            default="future",
+            help="Which strategy for selecting virtual goals to use",
+        )
 
         parser.add_argument(
             "--game",

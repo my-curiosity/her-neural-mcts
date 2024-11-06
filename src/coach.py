@@ -396,6 +396,7 @@ class Coach(ABC):
                         episode_history=episode_history,
                         gamma=self.args.gamma,
                         policy=self.args.hindsight_policy,
+                        goal_selection=self.args.hindsight_goal_selection,
                     )
                 )
 

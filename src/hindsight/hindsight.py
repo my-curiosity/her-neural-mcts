@@ -239,19 +239,32 @@ def check_for_first_state(state):
 
 
 def add_final_trajectory_hindsight(
-    game, episode_history, gamma, num_hindsight_samples=1, policy="original"
+    game,
+    episode_history,
+    gamma,
+    num_hindsight_samples=1,
+    policy="original",
+    goal_selection="future",
 ):
     # create hindsight history for each sampled goal
     hindsight_histories = [GameHistory() for _ in range(num_hindsight_samples)]
     # for each observation in episode
     for i in range(len(episode_history.observations)):
-        # find all future observations
-        future_observations = episode_history.observations[i + 1 :]
+        # find all possible goals depending on chosen strategy
+        indexed_observations = [
+            (observation, index)
+            for observation, index in enumerate(episode_history.observations)
+        ]
+        if goal_selection == "future":
+            possible_goals = indexed_observations[i + 1 :]
+        else:
+            possible_goals = [indexed_observations[-1]]
         # sample n virtual goals from them if possible
-        if len(future_observations) >= num_hindsight_samples:
+        if len(possible_goals) >= num_hindsight_samples:
             goal_indices, goal_observations = zip(
                 *random.sample(
-                    list(enumerate(future_observations, i + 1)), num_hindsight_samples
+                    possible_goals,
+                    num_hindsight_samples,
                 )
             )
             # for each virtual goal
@@ -262,16 +275,13 @@ def add_final_trajectory_hindsight(
                     observation=episode_history.observations[i],
                     hindsight_goal_observation=goal_observations[g],
                 )
-
                 # choose policy to use
-                hindsight_policy = (
-                    episode_history.probabilities[i]
-                    if policy == "original"
-                    else get_one_hot_policy(
+                if policy == "original":
+                    hindsight_policy = episode_history.probabilities[i]
+                else:
+                    hindsight_policy = get_one_hot_policy(
                         game=game, episode_actions=episode_history.actions, index=i
                     )
-                )
-
                 # save relabeled observation and policy to hindsight history
                 hindsight_histories[g].capture_with_observation(
                     observation=relabeled_observation,
@@ -291,6 +301,8 @@ def add_final_trajectory_hindsight(
                         goal_observation=goal_observations[g],
                     )
                 )
+        else:
+            raise ValueError()
     return hindsight_histories
 
 
