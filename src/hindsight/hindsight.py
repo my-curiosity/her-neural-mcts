@@ -238,7 +238,9 @@ def check_for_first_state(state):
         return True
 
 
-def add_final_trajectory_hindsight(game, num_hindsight_samples, episode_history, gamma):
+def add_final_trajectory_hindsight(
+    game, episode_history, gamma, num_hindsight_samples=1, policy="original"
+):
     # create hindsight history for each sampled goal
     hindsight_histories = [GameHistory() for _ in range(num_hindsight_samples)]
     # for each observation in episode
@@ -260,10 +262,20 @@ def add_final_trajectory_hindsight(game, num_hindsight_samples, episode_history,
                     observation=episode_history.observations[i],
                     hindsight_goal_observation=goal_observations[g],
                 )
-                # save relabeled observation and original mcts probabilities to hindsight history
+
+                # choose policy to use
+                hindsight_policy = (
+                    episode_history.probabilities[i]
+                    if policy == "original"
+                    else get_one_hot_policy(
+                        game=game, episode_actions=episode_history.actions, index=i
+                    )
+                )
+
+                # save relabeled observation and policy to hindsight history
                 hindsight_histories[g].capture_with_observation(
                     observation=relabeled_observation,
-                    pi=episode_history.probabilities[i],
+                    pi=hindsight_policy,
                     action=None,
                     r=0,
                     v=0,
@@ -326,3 +338,9 @@ def compute_return_from_rewards_list(
     rewards,
 ):
     return sum([np.power(gamma, k) * rewards[k] for k in range(len(rewards))])
+
+
+def get_one_hot_policy(game, episode_actions, index):
+    oh = np.zeros(game.getActionSize())
+    oh[episode_actions[index]] = 1
+    return oh

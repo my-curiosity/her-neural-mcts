@@ -746,7 +746,14 @@ class Config:
             "--hindsight_samples",
             type=int,
             default=1,
-            help="Number of hindsight samples to use at each tree depth",
+            help="Number of hindsight samples to use",
+        )
+        parser.add_argument(
+            "--hindsight_policy",
+            type=str,
+            choices=["original", "one_hot"],
+            default="original",
+            help="Which policy to use in hindsight samples",
         )
 
         parser.add_argument(

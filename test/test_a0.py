@@ -47,6 +47,7 @@ class TestA0(unittest.TestCase):
             " --use-puct True"
             " --training_mode mcts"
             " --hindsight_samples 4"
+            " --hindsight_policy one_hot"
             " --game bitflip"
             " --bitflip_num_bits 20"
             " --bitflip_max_steps 20"

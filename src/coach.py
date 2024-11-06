@@ -395,6 +395,7 @@ class Coach(ABC):
                         num_hindsight_samples=self.args.hindsight_samples,
                         episode_history=episode_history,
                         gamma=self.args.gamma,
+                        policy=self.args.hindsight_policy,
                     )
                 )
 
