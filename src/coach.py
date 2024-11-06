@@ -230,10 +230,8 @@ class Coach(ABC):
             state=state, num_mcts_sims=self.args.num_MCTS_sims, temperature=temp
         )
         # Take a step in the environment and observe the transition and store necessary statistics.
-        if mode == "test":
-            state.action = np.argmax(pi)
-        else:
-            state.action = np.random.choice(len(pi), p=pi)
+        # TODO: greedy choice only in test
+        state.action = np.argmax(pi)
         return pi, v
 
     def log_mcts_results(self, game, history, mcts, mode, next_state):
@@ -314,14 +312,13 @@ class Coach(ABC):
             # Self-play/ Gather training data.
             if not self.args.only_test:
                 if self.args.generate_new_training_data:
-                    iteration_train_examples = self.gather_data(
+                    self.gather_data(
                         metrics=self.metrics_train,
                         mcts=self.mcts,
                         game=self.game,
                         logger=self.logger,
                         num_selfplay_iterations=self.args.num_selfplay_iterations,
                     )
-                    self.trainExamplesHistory.append(iteration_train_examples)
                     wandb.log(
                         {
                             f"iteration": self.checkpoint.step,
@@ -341,12 +338,6 @@ class Coach(ABC):
                     )
                     self.saveTrainExamples(int(self.checkpoint.step))
 
-                if (
-                    self.args.prior_source == "neural_net"
-                    and int(self.checkpoint.step) >= self.args.cold_start_iterations
-                ):
-                    self.update_network()
-
                 save_path = self.checkpoint_manager.save(check_interval=True)
                 self.logger.debug(
                     f"Saved checkpoint for epoch {int(self.checkpoint.step)}: {save_path}"
@@ -359,63 +350,55 @@ class Coach(ABC):
             self.checkpoint.step.assign_add(1)
 
     def update_network(self):
-        # Flatten examples over self-play episodes and sample a training batch.
-        complete_history = GameHistory.flatten(self.trainExamplesHistory)
-        logging.warning(f"Number of samples in Replay buffer {len(complete_history)}")
         # Backpropagation
-        # TODO: how to do multiple gradient steps in a single train() call for equations?
-        batch = self.sampleBatch(complete_history)
-        pi_batch_loss, v_batch_loss, contrastive_loss = self.rule_predictor.train(batch)
+        pi_loss, v_loss = 0, 0
+        for _ in range(self.args.num_gradient_steps):
+            batch = self.sampleBatch(list(self.trainExamplesHistory))
+            pi_batch_loss, v_batch_loss, _ = self.rule_predictor.train(batch)
+            pi_loss += pi_batch_loss
+            v_loss += v_batch_loss
         wandb.log(
             {
                 f"iteration": self.checkpoint.step,
-                f"Pi loss": pi_batch_loss,
-                "V loss": v_batch_loss,
-                "Contrastive loss": contrastive_loss,
+                f"Pi loss": pi_loss / self.args.num_gradient_steps,
+                "V loss": v_loss / self.args.num_gradient_steps,
+                # "Contrastive loss": contrastive_loss,
             }
         )
 
     def gather_data(self, metrics, mcts, game, logger, num_selfplay_iterations):
-        iteration_examples = list()
         metrics["best_reward_found"].reset_state()
         metrics["done_rollout_ratio"].reset_state()
         metrics["return"].reset_state()
         metrics["percent_solved"].reset_state()
-        minimal_reward_runs = 0
-        for i in range(num_selfplay_iterations):
+
+        for _ in trange(num_selfplay_iterations, desc="Playing episodes"):
             mcts.clear_tree()
-            result_episode = self.execute_one_game(game=game, mcts=mcts)
-            if result_episode.observed_returns[0] == self.args.minimum_reward:
-                minimal_reward_runs += 1
-            iteration_examples.append(result_episode)
+            episode_history = self.execute_one_game(game=game, mcts=mcts)
+            self.trainExamplesHistory.append(episode_history)
             if isinstance(game, FindEquationGame):
                 self.log_best_list(game, logger)
 
             metrics["best_reward_found"].update_state(
                 game.max_list.max_list_state[-1].reward
             )
-            metrics["return"].update_state(result_episode.observed_returns[0])
+            metrics["return"].update_state(episode_history.observed_returns[0])
             metrics["percent_solved"].update_state(
-                100 if result_episode.rewards[-1] == self.args.maximum_reward else 0
+                100 if episode_history.rewards[-1] == self.args.maximum_reward else 0
             )
 
             # add hindsight histories to ER
             if self.args.hindsight_samples > 0 and metrics["mode"] == "train":
-                iteration_examples.extend(
+                self.trainExamplesHistory.extend(
                     add_final_trajectory_hindsight(
                         game=game,
                         num_hindsight_samples=self.args.hindsight_samples,
-                        episode_history=result_episode,
+                        episode_history=episode_history,
                         gamma=self.args.gamma,
                     )
                 )
 
-            self.logger.warning(f"Game #{i} finished ...")
-
-        iteration_examples = self.augment_buffer(
-            iteration_examples, metrics, minimal_reward_runs, num_selfplay_iterations
-        )
-        return iteration_examples
+            self.update_network()
 
     def add_mcts_tree_hindsight(self, game, iteration_train_examples, mcts):
         hindsight = Hindsight(

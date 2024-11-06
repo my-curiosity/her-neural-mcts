@@ -3,6 +3,7 @@ from tensorflow.keras.layers import (
     Activation,
     BatchNormalization,
     Dense,
+    Dropout,
     Input,
 )
 from tensorflow.keras.optimizers import Adam
@@ -12,12 +13,18 @@ class BitFlipNNet:
     def create_model(self):
         inputs = Input(shape=(2 * self.action_size))
 
-        fc1 = Activation("relu")(BatchNormalization(axis=1)(Dense(128)(inputs)))
-        fc2 = Activation("relu")(BatchNormalization(axis=1)(Dense(128)(fc1)))
-        fc3 = Activation("relu")(BatchNormalization(axis=1)(Dense(64)(fc2)))
+        fc1 = Dropout(0.3)(
+            Activation("relu")(BatchNormalization(axis=1)(Dense(1024)(inputs)))
+        )
+        fc2 = Dropout(0.3)(
+            Activation("relu")(BatchNormalization(axis=1)(Dense(1024)(fc1)))
+        )
+        fc3 = Dropout(0.3)(
+            Activation("relu")(BatchNormalization(axis=1)(Dense(512)(fc2)))
+        )
 
         pi = Dense(self.action_size, activation="softmax", name="pi")(fc3)
-        v = Dense(1, activation="tanh", name="v")(fc3)
+        v = Dense(1, name="v")(fc3)  # TODO: no tanh?
 
         return Model(inputs=inputs, outputs=[pi, v])
 

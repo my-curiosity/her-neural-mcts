@@ -5,37 +5,25 @@ import numpy as np
 from src.utils.logging import get_log_obj
 
 
-def prepare_for_prediction(examples):
-    return np.expand_dims(
-        np.concatenate(
-            (
-                examples[0]["observation"]["obs"]["state"],
-                examples[0]["observation"]["obs"]["goal"],
+def prepare_batch_obs(examples):
+    return np.array(
+        [
+            np.concatenate(
+                (
+                    e["observation"]["obs"]["state"],
+                    e["observation"]["obs"]["goal"],
+                )
             )
-        ),
-        axis=0,
+            for e in examples
+        ]
     )
 
 
-def prepare_batch_for_training(examples):
-    observations, loss_scale, target_pis, target_vs = [], [], [], []
-    for example in examples:
-        observations.append(
-            np.concatenate(
-                (
-                    example["observation"]["obs"]["state"],
-                    example["observation"]["obs"]["goal"],
-                )
-            )
-        )
-        if "probabilities_actor" in example:
-            target_pis.append(example["probabilities_actor"])
-            target_vs.append(example["observed_return"])
-            loss_scale.append(example["loss_scale"])
+def prepare_batch(examples):
     return (
-        np.asarray(observations),
-        np.asarray(target_pis),
-        np.asarray(target_vs),
+        prepare_batch_obs(examples),
+        np.array([e["probabilities_actor"] for e in examples]),
+        np.array([e["observed_return"] for e in examples]),
     )
 
 
@@ -52,27 +40,35 @@ class BitFlipRulePredictorSkeleton:
         This function trains the neural network with data gathered from self-play.
         :param examples: a list of training examples of the form: (o_t, (pi_t, v_t), w_t)
         """
-        inputs, target_pis, target_vs = prepare_batch_for_training(examples)
+        obs, target_pis, target_vs = prepare_batch(examples)
+        # target_vs = self.scale_returns(target_vs)
 
         metrics = self.net.model.fit(
-            x=inputs,
+            x=obs,
             y=[target_pis, target_vs],
-            batch_size=self.args.batch_size_training,
-            epochs=self.args.num_gradient_steps,
+            batch_size=len(obs),
+            epochs=1,
             verbose=False,
         )
         return (
-            sum(metrics.history["pi_loss"]) / self.args.num_gradient_steps,
-            sum(metrics.history["v_loss"]) / self.args.num_gradient_steps,
+            metrics.history["pi_loss"][0],
+            metrics.history["v_loss"][0],
             0,
         )
 
     def predict(self, examples):
-        inputs = prepare_for_prediction(examples)
-        pi, v = self.tf_predict(inputs)
+        obs = prepare_batch_obs(examples)
+        pi, v = self.tf_predict(obs)
         return pi.numpy()[0], v.numpy()[0][0]
 
     @tf.function
-    def tf_predict(self, inputs):
-        pi, v = self.net.model(inputs, training=False)
+    def tf_predict(self, obs):
+        pi, v = self.net.model(obs, training=False)
         return pi, v
+
+    # def predict_with_loss(self, examples):
+    #     obs, pi, z = prepare_batch(examples)
+    #     return self.net.model.evaluate(x=obs, y=[pi, z])
+
+    # def scale_returns(self, zs):
+    #     return np.array([z / self.game.getActionSize() for z in zs])
