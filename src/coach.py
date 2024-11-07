@@ -38,7 +38,7 @@ from src.preprocess_data.equation_preprocess_dummy import (
     equation_to_action_sequence,
     get_dict_token_to_action,
 )
-from src.hindsight.hindsight import Hindsight, add_final_trajectory_hindsight
+from src.hindsight.hindsight import add_hindsight
 
 
 class Coach(ABC):
@@ -219,9 +219,7 @@ class Coach(ABC):
             ),
         )
         history.compute_returns(
-            self.args,
             gamma=self.args.gamma,
-            look_ahead=(self.args.n_steps if self.game.n_players == 1 else None),
         )
         return history
 
@@ -390,46 +388,49 @@ class Coach(ABC):
             # add hindsight histories to ER
             if self.args.hindsight_samples > 0 and metrics["mode"] == "train":
                 self.trainExamplesHistory.extend(
-                    add_final_trajectory_hindsight(
+                    add_hindsight(
                         game=game,
-                        num_hindsight_samples=self.args.hindsight_samples,
+                        mcts=mcts,
+                        num_samples=self.args.hindsight_samples,
                         episode_history=episode_history,
                         gamma=self.args.gamma,
                         policy=self.args.hindsight_policy,
                         goal_selection=self.args.hindsight_goal_selection,
+                        trajectory_selection=self.args.hindsight_trajectory_selection,
+                        num_trajectories=self.args.hindsight_num_trajectories,
                     )
                 )
 
             self.update_network()
 
-    def add_mcts_tree_hindsight(self, game, iteration_train_examples, mcts):
-        hindsight = Hindsight(
-            action_size=game.action_size,
-            dataset_columns=game.dataset_columns,
-            grammar=game.grammar,
-            args=self.args,
-            mcts=mcts,
-        )
-        random_sorted_keys = list(mcts.Ssa.keys())
-        random.shuffle(random_sorted_keys)
-        num_elements_to_sample_per_depth = {
-            depth: self.args.hindsight_samples
-            for depth in range(self.args.max_depth_of_tree + 1)
-        }
-        for key in random_sorted_keys:
-            state = mcts.Ssa[key]
-            if state.syntax_tree.complete:
-                tree_depth = state.syntax_tree.current_depth
-                if num_elements_to_sample_per_depth[tree_depth] > 0:
-                    num_elements_to_sample_per_depth[tree_depth] -= 1
-                    history_forward, history_backward = (
-                        hindsight.create_hindsight_history(final_state=state)
-                    )
-                    if len(history_forward) > 0:
-                        iteration_train_examples.append(history_forward)
-                    if len(history_backward) > 0:
-                        iteration_train_examples.append(history_backward)
-                        state.found_equation = history_backward.found_equation
+    # def add_mcts_tree_hindsight(self, game, iteration_train_examples, mcts):
+    #     hindsight = Hindsight(
+    #         action_size=game.action_size,
+    #         dataset_columns=game.dataset_columns,
+    #         grammar=game.grammar,
+    #         args=self.args,
+    #         mcts=mcts,
+    #     )
+    #     random_sorted_keys = list(mcts.Ssa.keys())
+    #     random.shuffle(random_sorted_keys)
+    #     num_elements_to_sample_per_depth = {
+    #         depth: self.args.hindsight_samples
+    #         for depth in range(self.args.max_depth_of_tree + 1)
+    #     }
+    #     for key in random_sorted_keys:
+    #         state = mcts.Ssa[key]
+    #         if state.syntax_tree.complete:
+    #             tree_depth = state.syntax_tree.current_depth
+    #             if num_elements_to_sample_per_depth[tree_depth] > 0:
+    #                 num_elements_to_sample_per_depth[tree_depth] -= 1
+    #                 history_forward, history_backward = (
+    #                     hindsight.create_hindsight_history(final_state=state)
+    #                 )
+    #                 if len(history_forward) > 0:
+    #                     iteration_train_examples.append(history_forward)
+    #                 if len(history_backward) > 0:
+    #                     iteration_train_examples.append(history_backward)
+    #                     state.found_equation = history_backward.found_equation
 
     def log_best_list(self, game, logger):
         logger.info(f"Best equations found:")

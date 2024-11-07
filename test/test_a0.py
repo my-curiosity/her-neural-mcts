@@ -11,7 +11,7 @@ class TestA0(unittest.TestCase):
 
     def test_a0_bitflip(self):
         sys.argv += (
-            " --experiment_name test_her_4_bitflip_20_onehot_future"
+            " --experiment_name test_her_8_bitflip_50_onehot_future_final_mcts_40"
             " --job_id 15559341"
             " --minutes_to_run 6800"
             " --max_iteration_to_run 100"
@@ -36,22 +36,24 @@ class TestA0(unittest.TestCase):
             " --max_elements_in_best_list 10"
             " --temp_0 1"
             " --temperature_decay 0"
-            " --num_MCTS_sims 20"
+            " --num_MCTS_sims 40"
             " --c1 1"
             " --gamma 0.999"
             " --risk_seeking True"
             " --depth_first_search False"
             " --prioritize False"
-            " --selfplay_buffer_window 2500"
+            " --selfplay_buffer_window 5000"
             " --balance_buffer False"
             " --use-puct True"
             " --training_mode mcts"
-            " --hindsight_samples 4"
+            " --hindsight_samples 8"
             " --hindsight_policy one_hot"
             " --hindsight_goal_selection future"
+            " --hindsight_trajectory_selection final"
+            " --hindsight_num_trajectories 1"
             " --game bitflip"
-            " --bitflip_num_bits 20"
-            " --bitflip_max_steps 20"
+            " --bitflip_num_bits 50"
+            " --bitflip_max_steps 50"
             " --load_pretrained False"
         ).split()
         run()

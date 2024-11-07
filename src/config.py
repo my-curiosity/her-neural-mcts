@@ -746,7 +746,7 @@ class Config:
             "--hindsight_samples",
             type=int,
             default=1,
-            help="Number of hindsight samples to use",
+            help="Number of hindsight samples to use in each trajectory",
         )
         parser.add_argument(
             "--hindsight_policy",
@@ -761,6 +761,19 @@ class Config:
             choices=["future", "final"],
             default="future",
             help="Which strategy for selecting virtual goals to use",
+        )
+        parser.add_argument(
+            "--hindsight_trajectory_selection",
+            type=str,
+            choices=["mcts_random", "final"],
+            default="final",
+            help="Which strategy for selecting episode trajectories to use",
+        )
+        parser.add_argument(
+            "--hindsight_num_trajectories",
+            type=int,
+            default=1,
+            help="Number of mcts tree trajectories used. Always 1 if hindsight_trajectory_selection == final",
         )
 
         parser.add_argument(

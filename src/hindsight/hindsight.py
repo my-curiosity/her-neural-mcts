@@ -15,239 +15,289 @@ from src.utils.error import NonFiniteError
 from src.generate_datasets.dataset_generator import constant_dict_to_string
 
 
-class Hindsight:
-    """
-    Starts with a state corresponding to a finished formula.
-    Calls on the forward pass the predecessors and adds the actions that created the final state.
-    When initial node is reached the corresponding syntax tree is constructed.
-    With the new tree the corresponding y-values are calculated.
-    In the backward pass the new dataset is added to the history object.
-    """
+# class Hindsight:
+#     """
+#     Starts with a state corresponding to a finished formula.
+#     Calls on the forward pass the predecessors and adds the actions that created the final state.
+#     When initial node is reached the corresponding syntax tree is constructed.
+#     With the new tree the corresponding y-values are calculated.
+#     In the backward pass the new dataset is added to the history object.
+#     """
+#
+#     def __init__(self, action_size, dataset_columns, grammar, args, mcts=None):
+#         self.action_size = action_size
+#         self.dataset_columns = dataset_columns
+#         self.grammar = grammar
+#         self.args = args
+#         self.logger = get_log_obj(args=args, name="Hindsight")
+#         self.created_samples = 0
+#         self.complete_syntax_tree = None
+#         self.hindsight_data_without_residual = (None,)
+#         self.mcts = mcts
+#
+#     def create_hindsight_history(self, final_state):
+#         """
+#         starting method to get the hindsight history
+#         In the forward pass we generate the instances, where syntax tree and
+#         data does not fit.
+#         On the backward pass we create the dataset which fits with the syntax tree.
+#         :param final_state:
+#         :return:
+#         """
+#         try:
+#             self.complete_syntax_tree = None
+#             self.hindsight_data_without_residual = None
+#             history_forward = GameHistory()
+#             history_backward = GameHistory()
+#             history_forward.observed_returns = []
+#             history_backward.observed_returns = []
+#             self.constant_dict = final_state.syntax_tree.constants_in_tree
+#             self.visit_previous_state(
+#                 state=final_state,
+#                 history_forward=history_forward,
+#                 history_backward=history_backward,
+#                 actions=[],
+#             )
+#             history_forward.found_equation = f"{self.hindsight_true_equation}_f"
+#             history_backward.found_equation = f"{self.hindsight_true_equation}_b"
+#             self.created_samples += 1
+#             return history_forward, history_backward
+#         except AssertionError:
+#             self.logger.debug(
+#                 f"Equation can not be evaluated"
+#                 f"the equation is: {final_state.syntax_tree.rearrange_equation_prefix_notation(new_start_node_id=-1)[1]} \n"
+#             )
+#             return [], []
+#         except FloatingPointError:
+#             self.logger.debug(
+#                 f"In the calculation of the hindsight a FloatingPointError occur"
+#                 f"the equation is: {final_state.syntax_tree.rearrange_equation_prefix_notation(new_start_node_id=-1)[1]} \n"
+#                 f"the dataset is: {final_state.observation['data_frame']} "
+#             )
+#             return [], []
+#         except RuntimeError as e:
+#             self.logger.debug(
+#                 f"In the calculation of the hindsight a RuntimeError occur."
+#                 f"The error is {e} "
+#                 f"No history is added"
+#             )
+#             return [], []
+#         except NonFiniteError:
+#             self.logger.debug(
+#                 f"In the calculation of the hindsight a NonFinite Element occur."
+#                 f"No history added"
+#             )
+#             return [], []
+#
+#     def visit_previous_state(self, state, history_forward, history_backward, actions):
+#         """
+#         adds the action which created this state to the action list.
+#         It will first create the forward instance and call its previous state.
+#         On the way back the backward instance is created.
+#         :param state:
+#         :param history_forward:
+#         :param history_backward:
+#         :param actions:
+#         :return:
+#         """
+#         actions.insert(0, state.production_action)
+#         previous_state = state.previous_state
+#         self.add_state_to_forward_history(history_forward, previous_state, state)
+#
+#         history_forward, history_backward, hindsight_data = self.check_state_and_pass(
+#             actions, history_forward, history_backward, previous_state
+#         )
+#
+#         history_forward, history_backward, hindsight_data = (
+#             self.add_state_to_backward_history(
+#                 hindsight_data, history_forward, history_backward, previous_state, state
+#             )
+#         )
+#
+#         return history_forward, history_backward, hindsight_data
+#
+#     def add_state_to_forward_history(self, history_forward, previous_state, state):
+#         """
+#         adds the forward history. When the reward of the final state is
+#         not high enough a uniform distribution is added to the buffer
+#         :param history_forward:
+#         :param previous_state:
+#         :param state:
+#         :return:
+#         """
+#         if self.mcts:
+#             possible_actions = np.nonzero(
+#                 self.mcts.valid_moves_for_s[previous_state.hash]
+#             )[0]
+#             if state.reward < 0.5:
+#                 mcts_distribution = np.zeros(shape=self.action_size)
+#                 probability_one_action = 1 / len(possible_actions)
+#                 for action in possible_actions:
+#                     mcts_distribution[action] = probability_one_action
+#             else:
+#                 counts = np.zeros(shape=self.action_size)
+#                 for action in possible_actions:
+#                     key = (previous_state.hash, action)
+#                     if key in self.mcts.times_edge_s_a_was_visited:
+#                         counts[action] = self.mcts.times_edge_s_a_was_visited[key]
+#                 mcts_distribution = counts / np.sum(counts)
+#             previous_state.action = state.production_action
+#             previous_state.reward = state.reward * self.args.gamma
+#             history_forward.observed_returns.append(state.reward)
+#             history_forward.capture(
+#                 state=previous_state, pi=mcts_distribution, r=state.reward, v=None
+#             )
+#
+#     def add_state_to_backward_history(
+#         self, hindsight_data, history_forward, history_backward, previous_state, state
+#     ):
+#         """
+#         Adds a state with the new generated data set to the buffer
+#         :param hindsight_data:
+#         :param history_forward:
+#         :param history_backward:
+#         :param previous_state:
+#         :param state:
+#         :return:
+#         """
+#         state_hindsight = copy.deepcopy(previous_state)
+#         state_hindsight.observation["data_frame"] = hindsight_data
+#         state_hindsight.observation["true_equation"] = self.hindsight_true_equation
+#         state_hindsight.observation["true_equation_hash"] = (
+#             self.hindsight_true_equation_hash
+#         )
+#         state_hindsight.action = state.production_action
+#         hindsight_distribution = np.zeros(self.action_size)
+#         hindsight_distribution[state.production_action] = 1
+#         if state_hindsight.residual_calculated:
+#             df = copy.deepcopy(self.hindsight_data_without_residual)
+#             y_calc = self.complete_syntax_tree.evaluate_subtree(
+#                 node_id=state_hindsight.syntax_tree.start_node.node_id,
+#                 dataset=self.hindsight_data_without_residual,
+#             )
+#             df["y"] = y_calc
+#             hindsight_data = df
+#             state_hindsight.observation["data_frame"] = df
+#         history_backward.observed_returns.append(1)
+#         history_backward.capture(
+#             state=state_hindsight, pi=hindsight_distribution, r=1, v=None
+#         )
+#         return history_forward, history_backward, hindsight_data
+#
+#     def check_state_and_pass(
+#         self, actions, history_forward, history_backward, previous_state
+#     ):
+#         if check_for_first_state(previous_state):
+#             hindsight_data = self.create_hindsight_data(
+#                 actions=actions, original_data=previous_state.observation["data_frame"]
+#             )
+#         else:
+#             # call previous state
+#             history_forward, history_backward, hindsight_data = (
+#                 self.visit_previous_state(
+#                     state=previous_state,
+#                     history_forward=history_forward,
+#                     history_backward=history_backward,
+#                     actions=actions,
+#                 )
+#             )
+#         return history_forward, history_backward, hindsight_data
+#
+#     def create_hindsight_data(self, actions, original_data):
+#         syntax_tree = SyntaxTree(grammar=self.grammar, args=self.args)
+#         for action in actions:
+#             syntax_tree.expand_node_with_action(
+#                 node_id=syntax_tree.nodes_to_expand[0], action=action
+#             )
+#         syntax_tree.constants_in_tree = self.constant_dict
+#         hind_sight_df = copy.deepcopy(original_data)
+#         y_calc = syntax_tree.evaluate_subtree(
+#             node_id=syntax_tree.start_node.node_id,
+#             dataset=hind_sight_df,
+#         )
+#         if np.all(np.isfinite(y_calc)):
+#             c_string_backward = constant_dict_to_string(syntax_tree)
+#             equation_string = f"{syntax_tree.rearrange_equation_infix_notation(-1)[1]}"
+#             self.hindsight_true_equation = f"{equation_string}_{c_string_backward}"
+#             self.hindsight_true_equation_hash = equation_string.strip()
+#             hind_sight_df["y"] = y_calc
+#             self.complete_syntax_tree = syntax_tree
+#             self.hindsight_data_without_residual = hind_sight_df
+#             return hind_sight_df
+#         else:
+#             self.logger.info(
+#                 f"In calculation of hindsight  y_calc a non finite element happen. "
+#             )
+#             raise RuntimeError
+#
+#
+# def check_for_first_state(state):
+#     if state.previous_state:
+#         return False
+#     else:
+#         return True
 
-    def __init__(self, action_size, dataset_columns, grammar, args, mcts=None):
-        self.action_size = action_size
-        self.dataset_columns = dataset_columns
-        self.grammar = grammar
-        self.args = args
-        self.logger = get_log_obj(args=args, name="Hindsight")
-        self.created_samples = 0
-        self.complete_syntax_tree = None
-        self.hindsight_data_without_residual = (None,)
-        self.mcts = mcts
 
-    def create_hindsight_history(self, final_state):
-        """
-        starting method to get the hindsight history
-        In the forward pass we generate the instances, where syntax tree and
-        data does not fit.
-        On the backward pass we create the dataset which fits with the syntax tree.
-        :param final_state:
-        :return:
-        """
-        try:
-            self.complete_syntax_tree = None
-            self.hindsight_data_without_residual = None
-            history_forward = GameHistory()
-            history_backward = GameHistory()
-            history_forward.observed_returns = []
-            history_backward.observed_returns = []
-            self.constant_dict = final_state.syntax_tree.constants_in_tree
-            self.visit_previous_state(
-                state=final_state,
-                history_forward=history_forward,
-                history_backward=history_backward,
-                actions=[],
-            )
-            history_forward.found_equation = f"{self.hindsight_true_equation}_f"
-            history_backward.found_equation = f"{self.hindsight_true_equation}_b"
-            self.created_samples += 1
-            return history_forward, history_backward
-        except AssertionError:
-            self.logger.debug(
-                f"Equation can not be evaluated"
-                f"the equation is: {final_state.syntax_tree.rearrange_equation_prefix_notation(new_start_node_id=-1)[1]} \n"
-            )
-            return [], []
-        except FloatingPointError:
-            self.logger.debug(
-                f"In the calculation of the hindsight a FloatingPointError occur"
-                f"the equation is: {final_state.syntax_tree.rearrange_equation_prefix_notation(new_start_node_id=-1)[1]} \n"
-                f"the dataset is: {final_state.observation['data_frame']} "
-            )
-            return [], []
-        except RuntimeError as e:
-            self.logger.debug(
-                f"In the calculation of the hindsight a RuntimeError occur."
-                f"The error is {e} "
-                f"No history is added"
-            )
-            return [], []
-        except NonFiniteError:
-            self.logger.debug(
-                f"In the calculation of the hindsight a NonFinite Element occur."
-                f"No history added"
-            )
-            return [], []
-
-    def visit_previous_state(self, state, history_forward, history_backward, actions):
-        """
-        adds the action which created this state to the action list.
-        It will first create the forward instance and call its previous state.
-        On the way back the backward instance is created.
-        :param state:
-        :param history_forward:
-        :param history_backward:
-        :param actions:
-        :return:
-        """
-        actions.insert(0, state.production_action)
-        previous_state = state.previous_state
-        self.add_state_to_forward_history(history_forward, previous_state, state)
-
-        history_forward, history_backward, hindsight_data = self.check_state_and_pass(
-            actions, history_forward, history_backward, previous_state
+def add_hindsight(
+    game,
+    episode_history,
+    mcts,
+    gamma,
+    trajectory_selection,
+    num_trajectories,
+    num_samples,
+    policy,
+    goal_selection,
+):
+    if trajectory_selection == "final":
+        # use actually played episode history
+        return add_trajectory_hindsight(
+            game=game,
+            episode_history=episode_history,
+            gamma=gamma,
+            num_samples=num_samples,
+            policy=policy,
+            goal_selection=goal_selection,
         )
-
-        history_forward, history_backward, hindsight_data = (
-            self.add_state_to_backward_history(
-                hindsight_data, history_forward, history_backward, previous_state, state
+    else:
+        hindsight_histories = []
+        # get terminal states from mcts tree
+        terminal_states = get_mcts_terminal_states(mcts=mcts)
+        if len(terminal_states) < num_trajectories:
+            return []
+        # if possible, construct path to each of them from root
+        hindsight_trajectories = [
+            construct_trajectory_to_state(
+                final_state=s, mcts=mcts, game=game, gamma=gamma
             )
-        )
-
-        return history_forward, history_backward, hindsight_data
-
-    def add_state_to_forward_history(self, history_forward, previous_state, state):
-        """
-        adds the forward history. When the reward of the final state is
-        not high enough a uniform distribution is added to the buffer
-        :param history_forward:
-        :param previous_state:
-        :param state:
-        :return:
-        """
-        if self.mcts:
-            possible_actions = np.nonzero(
-                self.mcts.valid_moves_for_s[previous_state.hash]
-            )[0]
-            if state.reward < 0.5:
-                mcts_distribution = np.zeros(shape=self.action_size)
-                probability_one_action = 1 / len(possible_actions)
-                for action in possible_actions:
-                    mcts_distribution[action] = probability_one_action
-            else:
-                counts = np.zeros(shape=self.action_size)
-                for action in possible_actions:
-                    key = (previous_state.hash, action)
-                    if key in self.mcts.times_edge_s_a_was_visited:
-                        counts[action] = self.mcts.times_edge_s_a_was_visited[key]
-                mcts_distribution = counts / np.sum(counts)
-            previous_state.action = state.production_action
-            previous_state.reward = state.reward * self.args.gamma
-            history_forward.observed_returns.append(state.reward)
-            history_forward.capture(
-                state=previous_state, pi=mcts_distribution, r=state.reward, v=None
-            )
-
-    def add_state_to_backward_history(
-        self, hindsight_data, history_forward, history_backward, previous_state, state
-    ):
-        """
-        Adds a state with the new generated data set to the buffer
-        :param hindsight_data:
-        :param history_forward:
-        :param history_backward:
-        :param previous_state:
-        :param state:
-        :return:
-        """
-        state_hindsight = copy.deepcopy(previous_state)
-        state_hindsight.observation["data_frame"] = hindsight_data
-        state_hindsight.observation["true_equation"] = self.hindsight_true_equation
-        state_hindsight.observation["true_equation_hash"] = (
-            self.hindsight_true_equation_hash
-        )
-        state_hindsight.action = state.production_action
-        hindsight_distribution = np.zeros(self.action_size)
-        hindsight_distribution[state.production_action] = 1
-        if state_hindsight.residual_calculated:
-            df = copy.deepcopy(self.hindsight_data_without_residual)
-            y_calc = self.complete_syntax_tree.evaluate_subtree(
-                node_id=state_hindsight.syntax_tree.start_node.node_id,
-                dataset=self.hindsight_data_without_residual,
-            )
-            df["y"] = y_calc
-            hindsight_data = df
-            state_hindsight.observation["data_frame"] = df
-        history_backward.observed_returns.append(1)
-        history_backward.capture(
-            state=state_hindsight, pi=hindsight_distribution, r=1, v=None
-        )
-        return history_forward, history_backward, hindsight_data
-
-    def check_state_and_pass(
-        self, actions, history_forward, history_backward, previous_state
-    ):
-        if check_for_first_state(previous_state):
-            hindsight_data = self.create_hindsight_data(
-                actions=actions, original_data=previous_state.observation["data_frame"]
-            )
-        else:
-            # call previous state
-            history_forward, history_backward, hindsight_data = (
-                self.visit_previous_state(
-                    state=previous_state,
-                    history_forward=history_forward,
-                    history_backward=history_backward,
-                    actions=actions,
+            for s in random.sample(terminal_states, num_trajectories)
+        ]
+        # add hindsight using constructed trajectories
+        for t in hindsight_trajectories:
+            hindsight_histories.extend(
+                add_trajectory_hindsight(
+                    game=game,
+                    episode_history=t,
+                    gamma=gamma,
+                    num_samples=num_samples,
+                    policy=policy,
+                    goal_selection=goal_selection,
                 )
             )
-        return history_forward, history_backward, hindsight_data
 
-    def create_hindsight_data(self, actions, original_data):
-        syntax_tree = SyntaxTree(grammar=self.grammar, args=self.args)
-        for action in actions:
-            syntax_tree.expand_node_with_action(
-                node_id=syntax_tree.nodes_to_expand[0], action=action
-            )
-        syntax_tree.constants_in_tree = self.constant_dict
-        hind_sight_df = copy.deepcopy(original_data)
-        y_calc = syntax_tree.evaluate_subtree(
-            node_id=syntax_tree.start_node.node_id,
-            dataset=hind_sight_df,
-        )
-        if np.all(np.isfinite(y_calc)):
-            c_string_backward = constant_dict_to_string(syntax_tree)
-            equation_string = f"{syntax_tree.rearrange_equation_infix_notation(-1)[1]}"
-            self.hindsight_true_equation = f"{equation_string}_{c_string_backward}"
-            self.hindsight_true_equation_hash = equation_string.strip()
-            hind_sight_df["y"] = y_calc
-            self.complete_syntax_tree = syntax_tree
-            self.hindsight_data_without_residual = hind_sight_df
-            return hind_sight_df
-        else:
-            self.logger.info(
-                f"In calculation of hindsight  y_calc a non finite element happen. "
-            )
-            raise RuntimeError
+    return hindsight_histories
 
 
-def check_for_first_state(state):
-    if state.previous_state:
-        return False
-    else:
-        return True
-
-
-def add_final_trajectory_hindsight(
+def add_trajectory_hindsight(
     game,
     episode_history,
     gamma,
-    num_hindsight_samples=1,
+    num_samples=1,
     policy="original",
     goal_selection="future",
 ):
     # create hindsight history for each sampled goal
-    hindsight_histories = [GameHistory() for _ in range(num_hindsight_samples)]
+    hindsight_histories = [GameHistory() for _ in range(num_samples)]
     # for each observation in episode
     for i in range(len(episode_history.observations)):
         # find all possible goals depending on chosen strategy
@@ -260,11 +310,11 @@ def add_final_trajectory_hindsight(
         else:
             possible_goals = [indexed_observations[-1]]
         # sample n virtual goals from them if possible
-        if len(possible_goals) >= num_hindsight_samples:
+        if len(possible_goals) >= num_samples:
             goal_indices, goal_observations = zip(
                 *random.sample(
                     possible_goals,
-                    num_hindsight_samples,
+                    num_samples,
                 )
             )
             # for each virtual goal
@@ -301,8 +351,6 @@ def add_final_trajectory_hindsight(
                         goal_observation=goal_observations[g],
                     )
                 )
-        else:
-            raise ValueError()
     return hindsight_histories
 
 
@@ -353,6 +401,54 @@ def compute_return_from_rewards_list(
 
 
 def get_one_hot_policy(game, episode_actions, index):
-    oh = np.zeros(game.getActionSize())
-    oh[episode_actions[index]] = 1
-    return oh
+    one_hot = np.zeros(game.getActionSize())
+    one_hot[episode_actions[index]] = 1
+    return one_hot
+
+
+def construct_trajectory_to_state(game, final_state, mcts, gamma):
+    episode_history = GameHistory()
+    current_state = final_state
+    # repeat until the first state
+    while current_state.previous_state:
+        # get previous state
+        previous_state = current_state.previous_state
+        # find action visit counts from it
+        previous_state_actions = np.nonzero(
+            mcts.valid_moves_for_s[previous_state.hash]
+        )[0]
+        previous_state_action_visits = np.zeros(game.getActionSize())
+        for action in previous_state_actions:
+            key = (previous_state.hash, action)
+            if key in mcts.times_edge_s_a_was_visited:
+                previous_state_action_visits[action] = mcts.times_edge_s_a_was_visited[
+                    key
+                ]
+        # use them to construct a probability distribution
+        probabilities = previous_state_action_visits / np.sum(
+            previous_state_action_visits
+        )
+        # set previous state chosen action
+        previous_state.action = current_state.production_action
+        # capture previous state to history
+        episode_history.capture(
+            state=previous_state, pi=probabilities, r=current_state.reward, v=0
+        )
+        # move backwards
+        current_state = previous_state
+
+    # reverse order of states in history (we started from final) and compute return
+    episode_history.reverse()
+    episode_history.compute_returns(gamma)
+    # close history
+    episode_history.terminated = True
+    return episode_history
+
+
+def get_mcts_terminal_states(mcts):
+    # TODO: correct way to get terminal states?
+    return [
+        mcts.Ssa[key]
+        for key in list(mcts.Ssa.keys())
+        if mcts.times_s_was_visited[key[0]] == 0
+    ]

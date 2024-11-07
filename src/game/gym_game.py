@@ -82,7 +82,7 @@ class GymGame(Game):
             return np.zeros(self.env.action_space.n)  # noqa
 
     def getGameEnded(self, state: GameState, **kwargs) -> typing.Union[float, int]:
-        return GameState.done
+        return state.done
 
     def buildObservation(self, state: GameState) -> np.ndarray:
         return state.observation

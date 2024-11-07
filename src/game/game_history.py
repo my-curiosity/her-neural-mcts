@@ -57,12 +57,12 @@ class GameHistory:
         self.rewards.append(r)
         self.MCTS_value_estimation.append(v)
 
-    def slice_from_index(self, index):
-        self.observations = self.observations[:index]
-        self.actions = self.actions[:index]
-        self.probabilities = self.probabilities[:index]
-        self.rewards = self.rewards[:index]
-        self.MCTS_value_estimation = self.MCTS_value_estimation[:index]
+    def reverse(self):
+        self.observations.reverse()
+        self.actions.reverse()
+        self.probabilities.reverse()
+        self.rewards.reverse()
+        self.MCTS_value_estimation.reverse()
 
     def terminate(self, formula_started_from="", found_equation="") -> None:
         """Take a snapshot of the terminal state of the environment"""
@@ -81,11 +81,9 @@ class GameHistory:
         all([x.clear() for x in vars(self).values() if type(x) == list])
         self.terminated = False
 
-    def compute_returns(
-        self, args, gamma: float = 1, look_ahead: typing.Optional[int] = None
-    ) -> None:
+    def compute_returns(self, gamma: float = 1) -> None:
         """Computes the n-step returns assuming that the last recorded snapshot was a terminal state
-        :param args:
+        :param gamma:
         """
         self.observed_returns = list()
         horizon = len(self.rewards)
@@ -94,13 +92,13 @@ class GameHistory:
                 np.power(gamma, k - t) * self.rewards[k] for k in range(t, horizon)
             ]
             observed_return = sum(discounted_rewards)  # + bootstrap
-            if (
-                args.average_policy_if_wrong
-                and self.rewards[-1] < args.minimum_reward + 0.1
-            ):
-                self.probabilities[t][self.probabilities[t] > 0] = 1 / np.count_nonzero(
-                    self.probabilities[t]
-                )
+            # if (
+            #     args.average_policy_if_wrong
+            #     and self.rewards[-1] < args.minimum_reward + 0.1
+            # ):
+            #     self.probabilities[t][self.probabilities[t] > 0] = 1 / np.count_nonzero(
+            #         self.probabilities[t]
+            #     )
             self.observed_returns.append(observed_return)
         return
 
