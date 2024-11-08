@@ -116,9 +116,9 @@ def learn_a0(game, args, run_name: str, game_test) -> None:
 
     c = Coach(
         game=game,
-        game_test=game_test,
+        # game_test=game_test,
         rule_predictor=rule_predictor_train,
-        rule_predictor_test=rule_predictor_test,
+        # rule_predictor_test=rule_predictor_test,
         args=args,
         search_engine=search_engine,
         run_name=run_name,

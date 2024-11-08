@@ -49,9 +49,9 @@ class Coach(ABC):
     def __init__(
         self,
         game,
-        game_test,
+        # game_test,
         rule_predictor,
-        rule_predictor_test,
+        # rule_predictor_test,
         args,
         search_engine,
         run_name,
@@ -62,8 +62,8 @@ class Coach(ABC):
         """
         Initialize the self-play class with an environment, an agent to train, requisite hyperparameters, a MCTS search
         engine, and an agent-interface.
-        :param rule_predictor_test:
-        :param game_test:
+        # :param rule_predictor_test:
+        # :param game_test:
         :param run_name:
         :param game: Game Implementation of Game class for environment logic.
         :param rule_predictor: Some implementation of a neural network class to be trained.
@@ -72,20 +72,20 @@ class Coach(ABC):
         """
 
         self.game = game
-        self.game_test = game_test
+        # self.game_test = game_test
         self.args = args
 
         # Initialize replay buffer and helper variable
         self.trainExamplesHistory = deque(maxlen=self.args.selfplay_buffer_window)
-        self.testExamplesHistory = deque(maxlen=self.args.selfplay_buffer_window)
+        # self.testExamplesHistory = deque(maxlen=self.args.selfplay_buffer_window)
 
         # Initialize network and search engine
         self.rule_predictor = rule_predictor
-        self.rule_predictor_test = rule_predictor_test
+        # self.rule_predictor_test = rule_predictor_test
         self.mcts = search_engine(self.game, self.args, self.rule_predictor)
-        self.mcts_test = search_engine(
-            self.game_test, self.args, self.rule_predictor_test
-        )
+        # self.mcts_test = search_engine(
+        #     self.game_test, self.args, self.rule_predictor_test
+        # )
 
         if run_name is None:
             run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -160,34 +160,33 @@ class Coach(ABC):
         """
         # Update MCTS visit count temperature according to an episode or weight update schedule.
         temp = self.get_temperature(game)
-        if game == self.game_test:
-            mode = "test"
-        else:
-            mode = "train"
-        wandb.log({f"temperature_{mode}": temp})
+        # if game == self.game_test:
+        #     mode = "test"
+        # else:
+        #     mode = "train"
+        # wandb.log({f"temperature_{mode}": temp})
 
         history = GameHistory()
-        state = (
-            game.getInitialState()
-        )  # Always from perspective of player 1 for boardgames.
+        # Always from perspective of player 1 for boardgames.
+        state = game.getInitialState()
 
         if isinstance(game, FindEquationGame):
             complete_state = copy.deepcopy(state)
             formula_started_from = state.observation["current_tree_representation_str"]
-            self.logger.info(f"")
-            self.logger.info(
-                f"{mode}: equation for {state.observation['true_equation_hash']} is searched"
-            )
+            # self.logger.info(f"")
+            # self.logger.info(
+            #     f"{mode}: equation for {state.observation['true_equation_hash']} is searched"
+            # )
 
         i = 0
         while not state.done:
             # Compute the move probability vector and state value using MCTS for the current state of the environment.
-            if self.args.training_mode == "mcts" or mode == "test":
-                pi, v = self.get_mcts_action(mcts, mode, state, temp)
-            else:
-                state.action, pi, v = self.get_supervised_action(
-                    iteration=i, state=state
-                )
+            # if self.args.training_mode == "mcts" or mode == "test":
+            pi, v = self.get_mcts_action(mcts, state, temp)
+            # else:
+            #     state.action, pi, v = self.get_supervised_action(
+            #         iteration=i, state=state
+            #     )
             next_state, r = game.getNextState(
                 state=state,
                 action=state.action,
@@ -204,8 +203,8 @@ class Coach(ABC):
             # Update state of control
             state = next_state
             i += 1
-        if self.args.training_mode == "mcts" or mode == "test":
-            self.log_mcts_results(game, history, mcts, mode, next_state)
+        # if self.args.training_mode == "mcts" or mode == "test":
+        #     self.log_mcts_results(game, history, mcts, mode, next_state)
 
         game.close(state)
         history.terminate(
@@ -223,45 +222,45 @@ class Coach(ABC):
         )
         return history
 
-    def get_mcts_action(self, mcts, mode, state, temp):
+    def get_mcts_action(self, mcts, state, temp):
         pi, v = mcts.run_mcts(
             state=state, num_mcts_sims=self.args.num_MCTS_sims, temperature=temp
         )
         # Take a step in the environment and observe the transition and store necessary statistics.
-        # TODO: greedy choice only in test
+        # TODO: greedy choice only in test?
         state.action = np.argmax(pi)
         return pi, v
 
-    def log_mcts_results(self, game, history, mcts, mode, next_state):
-        # Cleanup environment and GameHistory
-        self.logger.info(f"Initial guess of NN: ")
-        initial_hash = list(mcts.Ps.keys())[0]
-        for i in np.where(mcts.valid_moves_for_s[initial_hash])[0]:
-            if (initial_hash, i) in mcts.Qsa:
-                self.logger.info(
-                    f"     {str(game.grammar._productions[i]._rhs if isinstance(game, FindEquationGame) else None) :<120}|"
-                    f" Ps: {round(mcts.Ps[initial_hash][i], 2):<10.2f}|"
-                    # f"init. Qsa: {round(mcts.initial_Qsa[(initial_hash, i)], 2) if (initial_hash, i) in mcts.initial_Qsa else 0:<10}"
-                    f" mcts: {round(history.probabilities[0][i], 2):<10}|"
-                    f" Qsa: {round(mcts.Qsa[(initial_hash, i)], 2):<10}|"
-                    f" #Ssa: {mcts.times_edge_s_a_was_visited[(initial_hash, i)]:<10}"
-                )
-
-        if mcts.states_explored_till_perfect_fit > 0:
-            wandb.log(
-                {
-                    f"num_states_to_perfect_fit_{mode}": mcts.states_explored_till_perfect_fit,
-                    f"{next_state.observation['true_equation_hash'] if isinstance(game, FindEquationGame) else next_state.observation}"
-                    f"_num_states_to_perfect_fit_{mode}": mcts.states_explored_till_perfect_fit,
-                }
-            )
-        else:
-            wandb.log(
-                {
-                    f"equation_not_found_{next_state.observation['true_equation_hash'] if isinstance(game, FindEquationGame) else next_state.observation}_{mode}": 1,
-                    f"equation_not_found_{mode}": 1,
-                }
-            )
+    # def log_mcts_results(self, game, history, mcts, mode, next_state):
+    #     # Cleanup environment and GameHistory
+    #     self.logger.info(f"Initial guess of NN: ")
+    #     initial_hash = list(mcts.Ps.keys())[0]
+    #     for i in np.where(mcts.valid_moves_for_s[initial_hash])[0]:
+    #         if (initial_hash, i) in mcts.Qsa:
+    #             self.logger.info(
+    #                 f"     {str(game.grammar._productions[i]._rhs if isinstance(game, FindEquationGame) else None) :<120}|"
+    #                 f" Ps: {round(mcts.Ps[initial_hash][i], 2):<10.2f}|"
+    #                 # f"init. Qsa: {round(mcts.initial_Qsa[(initial_hash, i)], 2) if (initial_hash, i) in mcts.initial_Qsa else 0:<10}"
+    #                 f" mcts: {round(history.probabilities[0][i], 2):<10}|"
+    #                 f" Qsa: {round(mcts.Qsa[(initial_hash, i)], 2):<10}|"
+    #                 f" #Ssa: {mcts.times_edge_s_a_was_visited[(initial_hash, i)]:<10}"
+    #             )
+    #
+    #     if mcts.states_explored_till_perfect_fit > 0:
+    #         wandb.log(
+    #             {
+    #                 f"num_states_to_perfect_fit_{mode}": mcts.states_explored_till_perfect_fit,
+    #                 f"{next_state.observation['true_equation_hash'] if isinstance(game, FindEquationGame) else next_state.observation}"
+    #                 f"_num_states_to_perfect_fit_{mode}": mcts.states_explored_till_perfect_fit,
+    #             }
+    #         )
+    #     else:
+    #         wandb.log(
+    #             {
+    #                 f"equation_not_found_{next_state.observation['true_equation_hash'] if isinstance(game, FindEquationGame) else next_state.observation}_{mode}": 1,
+    #                 f"equation_not_found_{mode}": 1,
+    #             }
+    #         )
 
     def get_temperature(self, game):
         try:
@@ -285,7 +284,7 @@ class Coach(ABC):
             f"Starting with hindsight ({self.args.hindsight_samples} samples) ..."
         )
 
-        t_end = time.time() + 60 * self.args.minutes_to_run
+        # t_end = time.time() + 60 * self.args.minutes_to_run
         self.metrics_train = {
             "mode": "train",
             "best_reward_found": tf.keras.metrics.Mean(dtype=tf.float32),
@@ -340,11 +339,11 @@ class Coach(ABC):
                 self.logger.debug(
                     f"Saved checkpoint for epoch {int(self.checkpoint.step)}: {save_path}"
                 )
-            if (
-                self.args.test_network
-                and self.checkpoint.step % self.args.test_every_n_steps == 0
-            ):
-                self.test_epoche(save_path=save_path)
+            # if (
+            #     self.args.test_network
+            #     and self.checkpoint.step % self.args.test_every_n_steps == 0
+            # ):
+            #     self.test_epoche(save_path=save_path)
             self.checkpoint.step.assign_add(1)
 
     def update_network(self):
@@ -374,8 +373,8 @@ class Coach(ABC):
             mcts.clear_tree()
             episode_history = self.execute_one_game(game=game, mcts=mcts)
             self.trainExamplesHistory.append(episode_history)
-            if isinstance(game, FindEquationGame):
-                self.log_best_list(game, logger)
+            # if isinstance(game, FindEquationGame):
+            #     self.log_best_list(game, logger)
 
             metrics["best_reward_found"].update_state(
                 game.max_list.max_list_state[-1].reward
@@ -432,88 +431,88 @@ class Coach(ABC):
     #                     iteration_train_examples.append(history_backward)
     #                     state.found_equation = history_backward.found_equation
 
-    def log_best_list(self, game, logger):
-        logger.info(f"Best equations found:")
-        for i in range(len(game.max_list.max_list_state) - 1, -1, -1):
-            logger.info(
-                f"{i}: found equation: {game.max_list.max_list_state[i].complete_discovered_equation:<80}"
-                f" r={round(game.max_list.max_list_keys[i], 3)}"
-            )
-            logger.info(game.max_list.max_list_state[i].syntax_tree.constants_in_tree)
+    # def log_best_list(self, game, logger):
+    #     logger.info(f"Best equations found:")
+    #     for i in range(len(game.max_list.max_list_state) - 1, -1, -1):
+    #         logger.info(
+    #             f"{i}: found equation: {game.max_list.max_list_state[i].complete_discovered_equation:<80}"
+    #             f" r={round(game.max_list.max_list_keys[i], 3)}"
+    #         )
+    #         logger.info(game.max_list.max_list_state[i].syntax_tree.constants_in_tree)
 
-    def augment_buffer(
-        self, iteration_examples, metrics, minimal_reward_runs, num_selfplay_iterations
-    ):
-        if metrics["mode"] == "train":
-            if self.args.balance_buffer:
-                iteration_examples = self.balance_buffer(
-                    iteration_examples=iteration_examples,
-                    minimal_reward_runs=minimal_reward_runs,
-                    num_selfplay_iterations=num_selfplay_iterations,
-                )
+    # def augment_buffer(
+    #     self, iteration_examples, metrics, minimal_reward_runs, num_selfplay_iterations
+    # ):
+    #     if metrics["mode"] == "train":
+    #         if self.args.balance_buffer:
+    #             iteration_examples = self.balance_buffer(
+    #                 iteration_examples=iteration_examples,
+    #                 minimal_reward_runs=minimal_reward_runs,
+    #                 num_selfplay_iterations=num_selfplay_iterations,
+    #             )
+    #
+    #     return iteration_examples
 
-        return iteration_examples
+    # def balance_buffer(
+    #     self, iteration_examples, minimal_reward_runs, num_selfplay_iterations
+    # ):
+    #     allowed_minimal_runs = int(
+    #         num_selfplay_iterations
+    #         * self.args.max_percent_of_minimal_reward_runs_in_buffer
+    #     )
+    #     if allowed_minimal_runs < minimal_reward_runs:
+    #         balanced_iteration_examples = []
+    #         allowed_minimal_runs_to_add = allowed_minimal_runs
+    #         for example in iteration_examples:
+    #             if example.observed_returns[0] > self.args.minimum_reward:
+    #                 balanced_iteration_examples.append(example)
+    #             elif allowed_minimal_runs_to_add > 0:
+    #                 balanced_iteration_examples.append(example)
+    #                 allowed_minimal_runs_to_add -= 1
+    #             else:
+    #                 pass
+    #         return balanced_iteration_examples
+    #     else:
+    #         return iteration_examples
 
-    def balance_buffer(
-        self, iteration_examples, minimal_reward_runs, num_selfplay_iterations
-    ):
-        allowed_minimal_runs = int(
-            num_selfplay_iterations
-            * self.args.max_percent_of_minimal_reward_runs_in_buffer
-        )
-        if allowed_minimal_runs < minimal_reward_runs:
-            balanced_iteration_examples = []
-            allowed_minimal_runs_to_add = allowed_minimal_runs
-            for example in iteration_examples:
-                if example.observed_returns[0] > self.args.minimum_reward:
-                    balanced_iteration_examples.append(example)
-                elif allowed_minimal_runs_to_add > 0:
-                    balanced_iteration_examples.append(example)
-                    allowed_minimal_runs_to_add -= 1
-                else:
-                    pass
-            return balanced_iteration_examples
-        else:
-            return iteration_examples
-
-    def test_epoche(self, save_path):
-        self.logger.warning(f"------------------ Test ----------------")
-        self.logger.info(f"load model to test from: {save_path}")
-        self.checkpoint_test.restore(save_path)
-        iteration_test_examples = self.gather_data(
-            metrics=self.metrics_test,
-            mcts=self.mcts_test,
-            game=self.game_test,
-            logger=self.logger_test,
-            num_selfplay_iterations=self.args.num_selfplay_iterations_test,
-        )
-        self.testExamplesHistory.append(iteration_test_examples)
-        if self.checkpoint.step > self.args.cold_start_iterations:
-            """Same as in update_network"""
-            complete_history = GameHistory.flatten(self.testExamplesHistory)
-            test_pi_loss = 0
-            test_v_loss = 0
-            test_contrastive_loss = 0
-            for i in range(10):
-                batch = self.sampleBatch(complete_history)
-                action_prediction, v, pi_batch_loss, v_batch_loss, contrastive_loss = (
-                    self.rule_predictor.predict_with_loss(batch)
-                )
-                test_pi_loss += pi_batch_loss
-                test_v_loss += v_batch_loss
-                test_contrastive_loss += contrastive_loss
-
-            wandb.log(
-                {
-                    f"iteration": self.checkpoint.step,
-                    f"Test pi loss": test_pi_loss / 10,
-                    "Test v loss": test_v_loss / 10,
-                    "Test Contrastive loss": test_contrastive_loss / 10,
-                    f"avg_best_reward_found_{self.metrics_test['mode']}": self.metrics_test[
-                        "best_reward_found"
-                    ].result(),
-                }
-            )
+    # def test_epoche(self, save_path):
+    #     self.logger.warning(f"------------------ Test ----------------")
+    #     self.logger.info(f"load model to test from: {save_path}")
+    #     self.checkpoint_test.restore(save_path)
+    #     iteration_test_examples = self.gather_data(
+    #         metrics=self.metrics_test,
+    #         mcts=self.mcts_test,
+    #         game=self.game_test,
+    #         logger=self.logger_test,
+    #         num_selfplay_iterations=self.args.num_selfplay_iterations_test,
+    #     )
+    #     self.testExamplesHistory.append(iteration_test_examples)
+    #     if self.checkpoint.step > self.args.cold_start_iterations:
+    #         """Same as in update_network"""
+    #         complete_history = GameHistory.flatten(self.testExamplesHistory)
+    #         test_pi_loss = 0
+    #         test_v_loss = 0
+    #         test_contrastive_loss = 0
+    #         for i in range(10):
+    #             batch = self.sampleBatch(complete_history)
+    #             action_prediction, v, pi_batch_loss, v_batch_loss, contrastive_loss = (
+    #                 self.rule_predictor.predict_with_loss(batch)
+    #             )
+    #             test_pi_loss += pi_batch_loss
+    #             test_v_loss += v_batch_loss
+    #             test_contrastive_loss += contrastive_loss
+    #
+    #         wandb.log(
+    #             {
+    #                 f"iteration": self.checkpoint.step,
+    #                 f"Test pi loss": test_pi_loss / 10,
+    #                 "Test v loss": test_v_loss / 10,
+    #                 "Test Contrastive loss": test_contrastive_loss / 10,
+    #                 f"avg_best_reward_found_{self.metrics_test['mode']}": self.metrics_test[
+    #                     "best_reward_found"
+    #                 ].result(),
+    #             }
+    #         )
 
     def saveTrainExamples(self, iteration: int) -> None:
         """
@@ -572,24 +571,24 @@ class Coach(ABC):
             else:
                 self.logger.info(f"No replay buffer found. Use empty one.")
 
-    def get_supervised_action(self, iteration, state):
-        if self.args.grammar_for_generation == self.args.grammar_search:
-            action = state.observation["action_sequence"][iteration]
-        elif self.args.grammar_search == "Token_Based":
-            if not hasattr(self, "token_to_action"):
-                self.token_to_action = get_dict_token_to_action(
-                    grammar=self.game.reader.grammar
-                )
-                self.equation_to_action_sequence = {}
-            action_sequence = equation_to_action_sequence(
-                equation=state.observation["prefix_formula"],
-                token_to_action=self.token_to_action,
-                equation_to_action_sequence=self.equation_to_action_sequence,
-                grammar=self.game.reader.grammar,
-            )
-            action = action_sequence[iteration]
-        pi = np.zeros(self.mcts.action_size)
-        pi[action] = 1
-        v = 0
-
-        return action, pi, v
+    # def get_supervised_action(self, iteration, state):
+    #     if self.args.grammar_for_generation == self.args.grammar_search:
+    #         action = state.observation["action_sequence"][iteration]
+    #     elif self.args.grammar_search == "Token_Based":
+    #         if not hasattr(self, "token_to_action"):
+    #             self.token_to_action = get_dict_token_to_action(
+    #                 grammar=self.game.reader.grammar
+    #             )
+    #             self.equation_to_action_sequence = {}
+    #         action_sequence = equation_to_action_sequence(
+    #             equation=state.observation["prefix_formula"],
+    #             token_to_action=self.token_to_action,
+    #             equation_to_action_sequence=self.equation_to_action_sequence,
+    #             grammar=self.game.reader.grammar,
+    #         )
+    #         action = action_sequence[iteration]
+    #     pi = np.zeros(self.mcts.action_size)
+    #     pi[action] = 1
+    #     v = 0
+    #
+    #     return action, pi, v

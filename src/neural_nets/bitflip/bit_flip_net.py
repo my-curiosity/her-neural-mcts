@@ -14,13 +14,13 @@ class BitFlipNNet:
         inputs = Input(shape=(2 * self.action_size))
 
         fc1 = Dropout(0.3)(
-            Activation("relu")(BatchNormalization(axis=1)(Dense(1024)(inputs)))
+            Activation("relu")(BatchNormalization(axis=1)(Dense(256)(inputs)))
         )
         fc2 = Dropout(0.3)(
-            Activation("relu")(BatchNormalization(axis=1)(Dense(1024)(fc1)))
+            Activation("relu")(BatchNormalization(axis=1)(Dense(256)(fc1)))
         )
         fc3 = Dropout(0.3)(
-            Activation("relu")(BatchNormalization(axis=1)(Dense(512)(fc2)))
+            Activation("relu")(BatchNormalization(axis=1)(Dense(128)(fc2)))
         )
 
         pi = Dense(self.action_size, activation="softmax", name="pi")(fc3)
