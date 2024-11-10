@@ -11,7 +11,7 @@ class TestA0(unittest.TestCase):
 
     def test_a0_bitflip(self):
         sys.argv += (
-            " --experiment_name test_her_8_bitflip_50_original_future_final_mcts_50"
+            " --experiment_name her_20_bitflip_50_original_future_final_mcts_50"
             " --job_id 15559341"
             " --minutes_to_run 6800"
             " --max_iteration_to_run 100"
@@ -27,7 +27,7 @@ class TestA0(unittest.TestCase):
             " --test_network False"
             " --test_every_n_steps 10"
             " --minimum_reward -1"
-            " --maximum_reward 1"
+            " --maximum_reward 0"
             " --batch_size_training 256"
             " --num_gradient_steps 30"
             " --average_policy_if_wrong False"
@@ -38,11 +38,11 @@ class TestA0(unittest.TestCase):
             " --temperature_decay 0"
             " --num_MCTS_sims 50"
             " --c1 1"
-            " --gamma 0.999"
+            " --gamma 0.98"
             " --risk_seeking True"
             " --depth_first_search False"
             " --prioritize False"
-            " --selfplay_buffer_window 5000"
+            " --selfplay_buffer_window 10"
             " --balance_buffer False"
             " --use-puct True"
             " --training_mode mcts"

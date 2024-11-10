@@ -24,7 +24,7 @@ class BitFlipNNet:
         )
 
         pi = Dense(self.action_size, activation="softmax", name="pi")(fc3)
-        v = Dense(1, name="v")(fc3)  # TODO: no tanh?
+        v = Dense(1, activation="linear", name="v")(fc3)
 
         return Model(inputs=inputs, outputs=[pi, v])
 

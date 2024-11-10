@@ -359,15 +359,19 @@ def compute_hindsight_return(
 ):
     hindsight_rewards = []
     # for each future episode observation until virtual goal
-    for j in range(observation_index, goal_index + 1):
+    for j in range(observation_index, goal_index):
         # compute and save new reward
         hindsight_rewards.append(
             get_reward_with_goal(
                 game=game,
-                observation=episode_observations[j],
+                # current reward is calculated using next observation -> j + 1
+                observation=episode_observations[j + 1],
                 goal_observation=goal_observation,
             )
         )
+        # stop if goal is already reached
+        if hindsight_rewards[-1] == game.args.maximum_reward:
+            break
     # calculate total return for state
     return compute_return_from_rewards_list(gamma, hindsight_rewards)
 

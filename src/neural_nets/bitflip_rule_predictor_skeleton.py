@@ -43,16 +43,12 @@ class BitFlipRulePredictorSkeleton:
         obs, target_pis, target_vs = prepare_batch(examples)
         # target_vs = self.scale_returns(target_vs)
 
-        metrics = self.net.model.fit(
-            x=obs,
-            y=[target_pis, target_vs],
-            batch_size=len(obs),
-            epochs=1,
-            verbose=False,
+        _, pi_loss, v_loss = self.net.model.train_on_batch(
+            x=obs, y=[target_pis, target_vs]
         )
         return (
-            metrics.history["pi_loss"][0],
-            metrics.history["v_loss"][0],
+            pi_loss,
+            v_loss,
             0,
         )
 

@@ -76,7 +76,11 @@ class Coach(ABC):
         self.args = args
 
         # Initialize replay buffer and helper variable
-        self.trainExamplesHistory = deque(maxlen=self.args.selfplay_buffer_window)
+        self.trainExamplesHistory = deque(
+            maxlen=self.args.selfplay_buffer_window
+            * self.args.num_selfplay_iterations
+            * (1 + self.args.hindsight_samples)
+        )
         # self.testExamplesHistory = deque(maxlen=self.args.selfplay_buffer_window)
 
         # Initialize network and search engine
