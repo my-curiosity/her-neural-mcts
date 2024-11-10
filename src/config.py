@@ -765,8 +765,8 @@ class Config:
         parser.add_argument(
             "--hindsight_trajectory_selection",
             type=str,
-            choices=["mcts_random", "final"],
-            default="final",
+            choices=["mcts_random", "played"],
+            default="played",
             help="Which strategy for selecting episode trajectories to use",
         )
         parser.add_argument(

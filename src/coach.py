@@ -38,7 +38,7 @@ from src.preprocess_data.equation_preprocess_dummy import (
     equation_to_action_sequence,
     get_dict_token_to_action,
 )
-from src.hindsight.hindsight import add_hindsight
+from src.hindsight.hindsight import Hindsight
 
 
 class Coach(ABC):
@@ -390,19 +390,18 @@ class Coach(ABC):
 
             # add hindsight histories to ER
             if self.args.hindsight_samples > 0 and metrics["mode"] == "train":
-                self.trainExamplesHistory.extend(
-                    add_hindsight(
-                        game=game,
-                        mcts=mcts,
-                        num_samples=self.args.hindsight_samples,
-                        episode_history=episode_history,
-                        gamma=self.args.gamma,
-                        policy=self.args.hindsight_policy,
-                        goal_selection=self.args.hindsight_goal_selection,
-                        trajectory_selection=self.args.hindsight_trajectory_selection,
-                        num_trajectories=self.args.hindsight_num_trajectories,
-                    )
+                hindsight = Hindsight(
+                    game=game,
+                    mcts=mcts,
+                    num_samples=self.args.hindsight_samples,
+                    episode_history=episode_history,
+                    gamma=self.args.gamma,
+                    policy=self.args.hindsight_policy,
+                    goal_selection=self.args.hindsight_goal_selection,
+                    trajectory_selection=self.args.hindsight_trajectory_selection,
+                    num_trajectories=self.args.hindsight_num_trajectories,
                 )
+                self.trainExamplesHistory.extend(hindsight.create_hindsight_samples())
 
             self.update_network()
 
