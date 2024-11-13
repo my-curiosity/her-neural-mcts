@@ -39,6 +39,7 @@ from src.preprocess_data.equation_preprocess_dummy import (
     get_dict_token_to_action,
 )
 from src.hindsight.hindsight import Hindsight
+from src.utils.utils import tie_breaking_argmax
 
 
 class Coach(ABC):
@@ -232,7 +233,7 @@ class Coach(ABC):
         )
         # Take a step in the environment and observe the transition and store necessary statistics.
         # TODO: greedy choice only in test?
-        state.action = np.argmax(pi)
+        state.action = np.random.choice(len(pi), p=pi)  # tie_breaking_argmax(pi)
         return pi, v
 
     # def log_mcts_results(self, game, history, mcts, mode, next_state):

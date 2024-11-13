@@ -779,7 +779,7 @@ class Config:
         parser.add_argument(
             "--game",
             type=str,
-            choices=["bitflip", "equation_discovery"],
+            choices=["bitflip", "maze", "equation_discovery"],
             default="equation_discovery",
             help="Which game type to choose",
         )

@@ -41,9 +41,7 @@ class Hindsight:
         self.policy = policy
         self.goal_selection = goal_selection
 
-    def create_hindsight_samples(
-        self,
-    ):
+    def create_hindsight_samples(self):
         """
         Creates HER samples for the last played episode.
 
@@ -75,10 +73,7 @@ class Hindsight:
 
         return hindsight_histories
 
-    def create_trajectory_hindsight_samples(
-        self,
-        trajectory,
-    ):
+    def create_trajectory_hindsight_samples(self, trajectory):
         """
         Creates HER samples using specified trajectory of the last played episode.
 
@@ -169,11 +164,7 @@ class Hindsight:
             return [], []
 
     def compute_hindsight_return(
-        self,
-        observation_index,
-        episode_observations,
-        goal_index,
-        goal_observation,
+        self, observation_index, episode_observations, goal_index, goal_observation
     ):
         """
         Computes total hindsight return from current state.
@@ -215,10 +206,15 @@ class Hindsight:
         :return: A copy of current observation with relabeled goal state.
         """
         relabeled_observation = copy.deepcopy(observation)
-        if self.game.env.spec.id == "bitflip":
+        if self.game.env.spec.id.startswith("bitflip"):
             relabeled_observation["obs"]["goal"] = hindsight_goal_observation["obs"][
                 "state"
             ]
+            return relabeled_observation
+        elif self.game.env.spec.id.startswith("PointMaze"):
+            relabeled_observation["obs"]["desired_goal"] = hindsight_goal_observation[
+                "obs"
+            ]["achieved_goal"]
             return relabeled_observation
         else:
             raise NotImplementedError()
@@ -231,10 +227,16 @@ class Hindsight:
         :param goal_observation: Goal observation
         :return: Game reward for current observation with specified goal.
         """
-        if self.game.env.spec.id == "bitflip":
+        if self.game.env.spec.id.startswith("bitflip"):
             return self.game.env.reward(
                 state=observation["obs"]["state"],
                 goal=goal_observation["obs"]["state"],
+            )
+        elif self.game.env.spec.id.startswith("PointMaze"):
+            return self.game.env.unwrapped.compute_reward(
+                observation["obs"]["achieved_goal"],
+                goal_observation["obs"]["achieved_goal"],
+                {},
             )
         else:
             raise NotImplementedError()

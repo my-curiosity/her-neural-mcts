@@ -2,7 +2,8 @@ import copy
 import typing
 import warnings
 
-import gym
+import gymnasium as gym
+import gymnasium_robotics
 import numpy as np
 from pcfg import PCFG
 from src.utils.get_grammar import add_prior
@@ -57,12 +58,20 @@ class GymGame(Game):
         return self.env.observation_space.shape
 
     def getActionSize(self) -> int:
-        return self.env.action_space.n  # noqa
+        return self.env.action_space.n.item()
 
     def getNextState(
         self, state: GymGameState, action: int, **kwargs
     ) -> typing.Tuple[GameState, float]:
         env = copy.deepcopy(state.env)
+
+        # quick hack for copying point maze state correctly
+        if env.spec.id.startswith("PointMaze"):
+            # env.unwrapped.set_state(state.env.unwrapped.data.qpos, state.env.unwrapped.data.qvel)
+            env.goal = env.unwrapped.goal = state.env.unwrapped.goal
+            env.data.qpos = env.unwrapped.data.qpos = state.env.unwrapped.data.qpos
+            env.data.qvel = env.unwrapped.data.qvel = state.env.unwrapped.data.qvel
+
         obs, reward, terminated, truncated, __ = env.step(action)
         next_state = GymGameState(
             env,
@@ -77,9 +86,9 @@ class GymGame(Game):
 
     def getLegalMoves(self, state: GameState) -> np.ndarray:
         if not state.done:
-            return np.ones(self.env.action_space.n)  # noqa
+            return np.ones(self.getActionSize())
         else:
-            return np.zeros(self.env.action_space.n)  # noqa
+            return np.zeros(self.getActionSize())
 
     def getGameEnded(self, state: GameState, **kwargs) -> typing.Union[float, int]:
         return state.done
@@ -94,8 +103,21 @@ class GymGame(Game):
         return str(state)
 
 
-def make_env(env_str: str, max_episode_steps):
-    if env_str == "CartPole-v1":
+def make_env(env_str: str, max_episode_steps=100):
+    if env_str.startswith("PointMaze"):
+        gym.register_envs(gymnasium_robotics)
+        return NegativeRewardWrapper(
+            DiscreteActionWrapper(
+                gym.make(
+                    env_str,
+                    reward_type="sparse",
+                    continuing_task=False,
+                    reset_target=False,
+                    max_episode_steps=max_episode_steps,
+                )
+            )
+        )
+    elif env_str == "CartPole-v1":
         return CartPoleWrapper(gym.make(env_str, max_episode_steps=max_episode_steps))
     elif env_str == "CliffWalking-v0":
         return CliffWrapper(gym.make(env_str, max_episode_steps=max_episode_steps))
@@ -112,6 +134,30 @@ def make_env(env_str: str, max_episode_steps):
         return gym.make(env_str)
     else:
         raise KeyError(f'Environment "{env_str}" does not exist!')
+
+
+class DiscreteActionWrapper(gym.ActionWrapper):
+    def __init__(self, env):
+        super(DiscreteActionWrapper, self).__init__(env)
+        self.action_space = gym.spaces.Discrete(8)
+
+    def action(self, action):
+        box_actions = [
+            [-1, 0],
+            [0, -1],
+            [0, 1],
+            [1, 0],
+            [-1 / np.sqrt(2), -1 / np.sqrt(2)],
+            [-1 / np.sqrt(2), 1 / np.sqrt(2)],
+            [1 / np.sqrt(2), -1 / np.sqrt(2)],
+            [1 / np.sqrt(2), 1 / np.sqrt(2)],
+        ]
+        return np.array(box_actions[action])
+
+
+class NegativeRewardWrapper(gym.RewardWrapper):
+    def reward(self, reward):
+        return 0 if reward == 1 else -1
 
 
 class CartPoleWrapper(gym.Wrapper):

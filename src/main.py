@@ -7,7 +7,7 @@ https://github.com/kaesve/muzero
 
 import warnings
 import random
-import gym
+import gymnasium as gym
 from datetime import datetime
 from src.config import Config
 from src.coach import Coach
@@ -17,13 +17,15 @@ from src.neural_nets.equation_rule_predictor_skeleton import (
 )
 from src.neural_nets.bitflip_rule_predictor_skeleton import BitFlipRulePredictorSkeleton
 from src.game.find_equation_game import FindEquationGame
-from src.game.gym_game import GymGame
+from src.game.gym_game import GymGame, make_env
 from src.mcts.classic_mcts import ClassicMCTS
 from src.mcts.amex_mcts import AmEx_MCTS
 import tensorflow as tf
 import numpy as np
 import wandb
 from definitions import ROOT_DIR
+
+from src.neural_nets.maze_rule_perdictor_skeleton import MazeRulePredictorSkeleton
 from src.utils.copy_weights import copy_dataset_encoder_weights_from_pretrained_agent
 from src.utils.get_grammar import get_grammar_from_string
 from src.generate_datasets.grammars import get_grammars
@@ -61,7 +63,7 @@ def run():
     if args.game == "equation_discovery":
         game = FindEquationGame(grammar, args, train_test_or_val="train")
         game_test = FindEquationGame(grammar, args, train_test_or_val="test")
-    else:
+    elif args.game == "bitflip":
         game = GymGame(
             args,
             gym.make(id=args.game, max_episode_steps=args.bitflip_max_steps, args=args),
@@ -70,6 +72,15 @@ def run():
             args,
             gym.make(id=args.game, max_episode_steps=args.bitflip_max_steps, args=args),
         )
+    elif args.game == "maze":
+        game = GymGame(
+            args, make_env(env_str="PointMaze_UMaze-v3", max_episode_steps=30)
+        )
+        game_test = GymGame(
+            args, make_env(env_str="PointMaze_UMaze-v3", max_episode_steps=30)
+        )
+    else:
+        game, game_test = None, None
 
     learn_a0(game=game, args=args, run_name=args.experiment_name, game_test=game_test)
     wandb.log({f"successful": True})
@@ -97,6 +108,9 @@ def learn_a0(game, args, run_name: str, game_test) -> None:
     elif args.game == "bitflip":
         rule_predictor_train = BitFlipRulePredictorSkeleton(game=game, args=args)
         rule_predictor_test = BitFlipRulePredictorSkeleton(game=game, args=args)
+    elif args.game == "maze":
+        rule_predictor_train = MazeRulePredictorSkeleton(game=game, args=args)
+        rule_predictor_test = MazeRulePredictorSkeleton(game=game, args=args)
     else:
         rule_predictor_train = None
         rule_predictor_test = None

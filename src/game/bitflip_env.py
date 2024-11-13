@@ -3,9 +3,9 @@ Simple BitFlip gym env, based on https://github.com/NervanaSystems/gym-bit-flip/
 """
 
 import numpy as np
-import gym
-from gym import spaces
-from gym.envs.registration import register
+import gymnasium as gym
+from gymnasium import spaces
+from gymnasium.envs.registration import register
 import random
 
 register(

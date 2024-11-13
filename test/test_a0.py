@@ -11,7 +11,7 @@ class TestA0(unittest.TestCase):
 
     def test_a0_bitflip(self):
         sys.argv += (
-            " --experiment_name her_1_b_50_original"
+            " --experiment_name her_8_b_50_original"
             " --job_id 15559341"
             " --minutes_to_run 6800"
             " --max_iteration_to_run 100"
@@ -54,6 +54,53 @@ class TestA0(unittest.TestCase):
             " --game bitflip"
             " --bitflip_num_bits 50"
             " --bitflip_max_steps 50"
+            " --load_pretrained False"
+        ).split()
+        run()
+
+    def test_a0_maze(self):
+        sys.argv += (
+            " --experiment_name her_0_u_maze"
+            " --job_id 15559341"
+            " --minutes_to_run 6800"
+            " --max_iteration_to_run 100"
+            " --sec_per_simulation -1"
+            " --only_test False"
+            " --seed 1"
+            " --logging_level 30"
+            " --wandb online"
+            " --gpu 0"
+            " --data data_grammar_8/run_1"
+            " --num_selfplay_iterations 50"
+            " --num_selfplay_iterations_test 10"
+            " --test_network False"
+            " --test_every_n_steps 10"
+            " --minimum_reward -1"
+            " --maximum_reward 0"
+            " --batch_size_training 512"
+            " --num_gradient_steps 30"
+            " --average_policy_if_wrong False"
+            " --cold_start_iterations 0"
+            " --MCTS_engine Normal"
+            " --max_elements_in_best_list 10"
+            " --temp_0 1"
+            " --temperature_decay 0"
+            " --num_MCTS_sims 30"
+            " --c1 1"
+            " --gamma 0.98"
+            " --risk_seeking True"
+            " --depth_first_search False"
+            " --prioritize False"
+            " --selfplay_buffer_window 10"
+            " --balance_buffer False"
+            " --use-puct True"
+            " --training_mode mcts"
+            " --hindsight_samples 0"
+            " --hindsight_policy original"
+            " --hindsight_goal_selection future"
+            " --hindsight_trajectory_selection played"
+            " --hindsight_num_trajectories 1"
+            " --game maze"
             " --load_pretrained False"
         ).split()
         run()
