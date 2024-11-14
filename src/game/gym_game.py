@@ -103,7 +103,7 @@ class GymGame(Game):
         return str(state)
 
 
-def make_env(env_str: str, max_episode_steps=100):
+def make_env(env_str: str, max_episode_steps):
     if env_str.startswith("PointMaze"):
         gym.register_envs(gymnasium_robotics)
         return NegativeRewardWrapper(

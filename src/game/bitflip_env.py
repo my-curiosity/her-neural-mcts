@@ -18,7 +18,7 @@ class BitFlipEnv(gym.Env):
         super(BitFlipEnv, self).__init__()
 
         self.num_bits = args.bitflip_num_bits
-        self.max_steps = args.bitflip_max_steps
+        self.max_steps = args.max_episode_steps
 
         self.action_space = spaces.Discrete(self.num_bits)
         self.observation_space = spaces.Dict(

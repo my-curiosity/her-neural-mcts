@@ -790,10 +790,10 @@ class Config:
             help="Size of the BitFlip environment",
         )
         parser.add_argument(
-            "--bitflip_max_steps",
+            "--max_episode_steps",
             type=int,
             default=100,
-            help="Max amount of steps allowed in one BitFlip game",
+            help="Max amount of steps allowed in one game",
         )
 
         parser.add_argument(

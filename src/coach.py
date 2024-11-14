@@ -233,7 +233,7 @@ class Coach(ABC):
         )
         # Take a step in the environment and observe the transition and store necessary statistics.
         # TODO: greedy choice only in test?
-        state.action = np.random.choice(len(pi), p=pi)  # tie_breaking_argmax(pi)
+        state.action = np.argmax(pi)
         return pi, v
 
     # def log_mcts_results(self, game, history, mcts, mode, next_state):

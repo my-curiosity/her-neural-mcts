@@ -66,18 +66,24 @@ def run():
     elif args.game == "bitflip":
         game = GymGame(
             args,
-            gym.make(id=args.game, max_episode_steps=args.bitflip_max_steps, args=args),
+            gym.make(id=args.game, max_episode_steps=args.max_episode_steps, args=args),
         )
         game_test = GymGame(
             args,
-            gym.make(id=args.game, max_episode_steps=args.bitflip_max_steps, args=args),
+            gym.make(id=args.game, max_episode_steps=args.max_episode_steps, args=args),
         )
     elif args.game == "maze":
         game = GymGame(
-            args, make_env(env_str="PointMaze_UMaze-v3", max_episode_steps=30)
+            args,
+            make_env(
+                env_str="PointMaze_UMaze-v3", max_episode_steps=args.max_episode_steps
+            ),
         )
         game_test = GymGame(
-            args, make_env(env_str="PointMaze_UMaze-v3", max_episode_steps=30)
+            args,
+            make_env(
+                env_str="PointMaze_UMaze-v3", max_episode_steps=args.max_episode_steps
+            ),
         )
     else:
         game, game_test = None, None

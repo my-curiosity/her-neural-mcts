@@ -233,7 +233,7 @@ class Hindsight:
                 goal=goal_observation["obs"]["state"],
             )
         elif self.game.env.spec.id.startswith("PointMaze"):
-            return self.game.env.unwrapped.compute_reward(
+            return self.game.env.compute_reward(
                 observation["obs"]["achieved_goal"],
                 goal_observation["obs"]["achieved_goal"],
                 {},

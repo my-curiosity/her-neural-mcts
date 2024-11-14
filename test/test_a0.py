@@ -53,14 +53,14 @@ class TestA0(unittest.TestCase):
             " --hindsight_num_trajectories 1"
             " --game bitflip"
             " --bitflip_num_bits 50"
-            " --bitflip_max_steps 50"
+            " --max_episode_steps 50"
             " --load_pretrained False"
         ).split()
         run()
 
     def test_a0_maze(self):
         sys.argv += (
-            " --experiment_name her_0_u_maze"
+            " --experiment_name her_1_maze_20_30"
             " --job_id 15559341"
             " --minutes_to_run 6800"
             " --max_iteration_to_run 100"
@@ -85,7 +85,7 @@ class TestA0(unittest.TestCase):
             " --max_elements_in_best_list 10"
             " --temp_0 1"
             " --temperature_decay 0"
-            " --num_MCTS_sims 30"
+            " --num_MCTS_sims 20"
             " --c1 1"
             " --gamma 0.98"
             " --risk_seeking True"
@@ -95,12 +95,13 @@ class TestA0(unittest.TestCase):
             " --balance_buffer False"
             " --use-puct True"
             " --training_mode mcts"
-            " --hindsight_samples 0"
+            " --hindsight_samples 1"
             " --hindsight_policy original"
             " --hindsight_goal_selection future"
             " --hindsight_trajectory_selection played"
             " --hindsight_num_trajectories 1"
             " --game maze"
+            " --max_episode_steps 30"
             " --load_pretrained False"
         ).split()
         run()
