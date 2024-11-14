@@ -751,7 +751,7 @@ class Config:
         parser.add_argument(
             "--hindsight_policy",
             type=str,
-            choices=["original", "one_hot"],
+            choices=["original", "one_hot", "one_hot_noisy"],
             default="original",
             help="Which policy to use in hindsight samples",
         )
@@ -774,6 +774,24 @@ class Config:
             type=int,
             default=1,
             help="Number of mcts tree trajectories used. Always 1 if hindsight_trajectory_selection == final",
+        )
+        parser.add_argument(
+            "--hindsight_aggressive_returns_lambda",
+            type=np.float32,
+            default=1,
+            help="Multiplication factor for hindsight returns (http://arxiv.org/abs/1809.02070)",
+        )
+        parser.add_argument(
+            "--hindsight_experience_ranking",
+            type=str2bool,
+            default=False,
+            help="Enables experience ranking for HER (https://ieeexplore.ieee.org/abstract/document/8850705/)",
+        )
+        parser.add_argument(
+            "--hindsight_experience_ranking_threshold",
+            type=np.float32,
+            default=1,
+            help="Maximum distance between virtual and real goals allowed",
         )
 
         parser.add_argument(

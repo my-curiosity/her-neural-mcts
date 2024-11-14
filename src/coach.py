@@ -394,13 +394,18 @@ class Coach(ABC):
                 hindsight = Hindsight(
                     game=game,
                     mcts=mcts,
-                    num_samples=self.args.hindsight_samples,
-                    episode_history=episode_history,
                     gamma=self.args.gamma,
+                    episode_history=episode_history,
+                    # configuration
+                    num_samples=self.args.hindsight_samples,
                     policy=self.args.hindsight_policy,
                     goal_selection=self.args.hindsight_goal_selection,
                     trajectory_selection=self.args.hindsight_trajectory_selection,
                     num_trajectories=self.args.hindsight_num_trajectories,
+                    # advanced options
+                    aggressive_returns_lambda=self.args.hindsight_aggressive_returns_lambda,
+                    experience_ranking=self.args.hindsight_experience_ranking,
+                    experience_ranking_threshold=self.args.hindsight_experience_ranking_threshold,
                 )
                 self.trainExamplesHistory.extend(hindsight.create_hindsight_samples())
 

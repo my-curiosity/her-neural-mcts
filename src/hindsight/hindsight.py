@@ -15,8 +15,13 @@ class Hindsight:
     :param trajectory_selection: Trajectory choice: played (=episode_history) or random from the MCTS tree
     :param num_trajectories: Number of trajectories to use (only for random trajectory_selection)
     :param num_samples: Maximum number of goals to sample for each observation
-    :param policy: Policy target choice: original from MCTS probabilities or one-hot
+    :param policy: Policy target choice: original from MCTS probabilities, one-hot or one-hot with random noise
     :param goal_selection: Strategy for selecting goals: future visited episode states or final state
+    :param aggressive_returns_lambda: Multiplication factor for hindsight rewards (returns in our case)
+        to attempt countering created bias: http://arxiv.org/abs/1809.02070
+    :param experience_ranking: Filtering of virtual goals far away from the original:
+        https://ieeexplore.ieee.org/abstract/document/8850705/
+    :param experience_ranking_threshold: Maximum distance between virtual and real goals allowed
     """
 
     def __init__(
@@ -30,6 +35,9 @@ class Hindsight:
         num_samples,
         policy,
         goal_selection,
+        aggressive_returns_lambda=1,
+        experience_ranking=False,
+        experience_ranking_threshold=1,
     ):
         self.game = game
         self.episode_history = episode_history
@@ -40,6 +48,9 @@ class Hindsight:
         self.num_samples = num_samples
         self.policy = policy
         self.goal_selection = goal_selection
+        self.aggressive_returns_lambda = aggressive_returns_lambda
+        self.experience_ranking = experience_ranking
+        self.experience_ranking_threshold = experience_ranking_threshold
 
     def create_hindsight_samples(self):
         """
@@ -98,6 +109,15 @@ class Hindsight:
             )
             # for each virtual goal
             for g in range(len(goal_observations)):
+                # skip goals too far away from original
+                if (
+                    self.experience_ranking
+                    and self.compute_distance_to_original_goal(
+                        virtual_goal_observation=goal_observations[g]
+                    )
+                    > self.experience_ranking_threshold
+                ):
+                    continue
                 # change original observation goal
                 relabeled_observation = self.relabel_observation_goal(
                     observation=trajectory.observations[i],
@@ -106,7 +126,7 @@ class Hindsight:
                 # choose policy to use
                 if self.policy == "original":
                     hindsight_policy = trajectory.probabilities[i]
-                elif self.policy == "one_hot":
+                elif self.policy == "one_hot" or self.policy == "one_hot_noisy":
                     hindsight_policy = self.get_one_hot_policy(
                         episode_actions=trajectory.actions, index=i
                     )
@@ -189,12 +209,15 @@ class Hindsight:
             # stop if goal is already reached
             if hindsight_rewards[-1] == self.game.args.maximum_reward:
                 break
-        # calculate total return for state
-        return sum(
-            [
-                np.power(self.gamma, k) * hindsight_rewards[k]
-                for k in range(len(hindsight_rewards))
-            ]
+        # calculate total return for state (and multiply by lambda if aggressive rewards are used)
+        return (
+            sum(
+                [
+                    np.power(self.gamma, k) * hindsight_rewards[k]
+                    for k in range(len(hindsight_rewards))
+                ]
+            )
+            * self.aggressive_returns_lambda
         )
 
     def relabel_observation_goal(self, observation, hindsight_goal_observation):
@@ -241,6 +264,27 @@ class Hindsight:
         else:
             raise NotImplementedError()
 
+    def compute_distance_to_original_goal(self, virtual_goal_observation):
+        """
+        Calculates a measure of distance between virtual and real goals. Implementation details are
+        environment-specific.
+
+        :param virtual_goal_observation: Virtual goal observation
+        :return: Distance between virtual and real goals.
+        """
+        if self.game.env.spec.id.startswith("bitflip"):
+            return np.linalg.norm(
+                virtual_goal_observation["obs"]["state"]
+                - virtual_goal_observation["obs"]["goal"]
+            )
+        elif self.game.env.spec.id.startswith("PointMaze"):
+            return np.linalg.norm(
+                virtual_goal_observation["obs"]["achieved_goal"]
+                - virtual_goal_observation["obs"]["desired_goal"]
+            )
+        else:
+            raise NotImplementedError()
+
     def get_one_hot_policy(self, episode_actions, index):
         """
         Constructs one-hot move policy for current state
@@ -252,6 +296,8 @@ class Hindsight:
         """
         one_hot = np.zeros(self.game.getActionSize())
         one_hot[episode_actions[index]] = 1
+        if self.policy == "one_hot_noisy":
+            one_hot += np.random.random(one_hot.shape) * 1e-8
         return one_hot
 
     def construct_trajectory_to_state(self, final_state):
