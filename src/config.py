@@ -20,6 +20,12 @@ class Config:
             help="Give the experiment an informative Name. ",
         )
         parser.add_argument(
+            "--project_name",
+            type=str,
+            default="her-neural-mcts",
+            help="wandb project name",
+        )
+        parser.add_argument(
             "--grammar_search",
             type=str,
             default="curated_equations",
@@ -814,6 +820,12 @@ class Config:
             help="Max amount of steps allowed in one game",
         )
 
+        parser.add_argument(
+            "--lr",
+            type=np.float32,
+            default=0.0005,
+            help="Learning rate of the rule predictor",
+        )
         parser.add_argument(
             "--load_pretrained",
             type=str2bool,

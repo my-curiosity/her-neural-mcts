@@ -117,6 +117,7 @@ class Hindsight:
                     )
                     > self.experience_ranking_threshold
                 ):
+                    g -= 1  # we did not accept this goal -> reduce the counter
                     continue
                 # change original observation goal
                 relabeled_observation = self.relabel_observation_goal(
@@ -256,10 +257,10 @@ class Hindsight:
                 goal=goal_observation["obs"]["state"],
             )
         elif self.game.env.spec.id.startswith("PointMaze"):
-            return self.game.env.compute_reward(
-                observation["obs"]["achieved_goal"],
-                goal_observation["obs"]["achieved_goal"],
-                {},
+            return self.game.env.compute_reward_(
+                achieved_goal=observation["obs"]["achieved_goal"],
+                desired_goal=goal_observation["obs"]["achieved_goal"],
+                info={},
             )
         else:
             raise NotImplementedError()
@@ -297,7 +298,7 @@ class Hindsight:
         one_hot = np.zeros(self.game.getActionSize())
         one_hot[episode_actions[index]] = 1
         if self.policy == "one_hot_noisy":
-            one_hot += np.random.random(one_hot.shape) * 1e-8
+            one_hot += np.random.random(one_hot.shape) * 1e-2
         return one_hot
 
     def construct_trajectory_to_state(self, final_state):

@@ -18,7 +18,6 @@ class BitFlipEnv(gym.Env):
         super(BitFlipEnv, self).__init__()
 
         self.num_bits = args.bitflip_num_bits
-        self.max_steps = args.max_episode_steps
 
         self.action_space = spaces.Discrete(self.num_bits)
         self.observation_space = spaces.Dict(
@@ -28,7 +27,6 @@ class BitFlipEnv(gym.Env):
             }
         )
 
-        self.steps = 0
         self.state = np.array([random.getrandbits(1) for _ in range(self.num_bits)])
         self.goal = self.state
         while np.array_equal(self.goal, self.state):
@@ -38,7 +36,7 @@ class BitFlipEnv(gym.Env):
         self.max_reward = args.maximum_reward
 
     def _terminated(self):
-        return np.array_equal(self.state, self.goal) or self.steps >= self.max_steps
+        return np.array_equal(self.state, self.goal)
 
     def reward(self, state=None, goal=None):
         state_checked = self.state if state is None else state
@@ -51,12 +49,10 @@ class BitFlipEnv(gym.Env):
 
     def step(self, action):
         self.state[action] = int(not self.state[action])
-        self.steps += 1
         return self._get_obs(), self.reward(), self._terminated(), False, {}
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        self.steps = 0
         self.state = np.array([random.getrandbits(1) for _ in range(self.num_bits)])
         self.goal = self.state
         while np.array_equal(self.goal, self.state):
@@ -65,8 +61,8 @@ class BitFlipEnv(gym.Env):
 
     def _get_obs(self):
         return {
-            "state": self.state,
-            "goal": self.goal,
+            "state": np.copy(self.state),
+            "goal": np.copy(self.goal),
         }
 
     def render(self):

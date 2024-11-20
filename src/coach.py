@@ -186,15 +186,18 @@ class Coach(ABC):
         i = 0
         while not state.done:
             # Compute the move probability vector and state value using MCTS for the current state of the environment.
-            # if self.args.training_mode == "mcts" or mode == "test":
-            pi, v = self.get_mcts_action(mcts, state, temp)
-            # else:
-            #     state.action, pi, v = self.get_supervised_action(
-            #         iteration=i, state=state
-            #     )
-            next_state, r = game.getNextState(
+            pi, v = mcts.run_mcts(
                 state=state,
-                action=state.action,
+                num_mcts_sims=self.args.num_MCTS_sims,
+                temperature=temp,
+                depth=i,
+            )
+            # Take a step in the environment and observe the transition and store necessary statistics.
+            # TODO: greedy choice only in test?
+            state.action = np.argmax(pi)
+
+            next_state, r = game.getNextState(
+                state=state, action=state.action, steps_done=i
             )
 
             if isinstance(game, FindEquationGame):
@@ -222,19 +225,8 @@ class Coach(ABC):
                 else None
             ),
         )
-        history.compute_returns(
-            gamma=self.args.gamma,
-        )
+        history.compute_returns(gamma=self.args.gamma)
         return history
-
-    def get_mcts_action(self, mcts, state, temp):
-        pi, v = mcts.run_mcts(
-            state=state, num_mcts_sims=self.args.num_MCTS_sims, temperature=temp
-        )
-        # Take a step in the environment and observe the transition and store necessary statistics.
-        # TODO: greedy choice only in test?
-        state.action = np.argmax(pi)
-        return pi, v
 
     # def log_mcts_results(self, game, history, mcts, mode, next_state):
     #     # Cleanup environment and GameHistory

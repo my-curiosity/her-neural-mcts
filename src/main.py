@@ -43,7 +43,7 @@ def run():
     wandb.init(
         entity="my_cur10s1ty-tu-darmstadt",
         config=args.__dict__,
-        project="her-neural-mcts",
+        project=args.project_name,
         sync_tensorboard=True,
         tensorboard=True,
         dir=wandb_path,
@@ -76,13 +76,13 @@ def run():
         game = GymGame(
             args,
             make_env(
-                env_str="PointMaze_UMaze-v3", max_episode_steps=args.max_episode_steps
+                env_str="PointMaze_Medium-v3", max_episode_steps=args.max_episode_steps
             ),
         )
         game_test = GymGame(
             args,
             make_env(
-                env_str="PointMaze_UMaze-v3", max_episode_steps=args.max_episode_steps
+                env_str="PointMaze_Medium-v3", max_episode_steps=args.max_episode_steps
             ),
         )
     else:

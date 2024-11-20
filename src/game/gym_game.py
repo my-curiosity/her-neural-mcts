@@ -52,7 +52,7 @@ class GymGame(Game):
 
     def getInitialState(self) -> GymGameState:
         obs, _ = self.env.reset()
-        return GymGameState(self.env, {"last_symbol": "S", "obs": obs})
+        return GymGameState(None, {"last_symbol": "S", "obs": obs})
 
     def getDimensions(self) -> typing.Tuple[int, ...]:
         return self.env.observation_space.shape
@@ -61,20 +61,14 @@ class GymGame(Game):
         return self.env.action_space.n.item()
 
     def getNextState(
-        self, state: GymGameState, action: int, **kwargs
+        self, state: GymGameState, action: int, steps_done: int = 0, **kwargs
     ) -> typing.Tuple[GameState, float]:
-        env = copy.deepcopy(state.env)
+        # avoid using deepcopy on env, reset to state (obs + goal) instead
+        self.reset_env_to_state(state=state, steps_done=steps_done)
 
-        # quick hack for copying point maze state correctly
-        if env.spec.id.startswith("PointMaze"):
-            # env.unwrapped.set_state(state.env.unwrapped.data.qpos, state.env.unwrapped.data.qvel)
-            env.goal = env.unwrapped.goal = state.env.unwrapped.goal
-            env.data.qpos = env.unwrapped.data.qpos = state.env.unwrapped.data.qpos
-            env.data.qvel = env.unwrapped.data.qvel = state.env.unwrapped.data.qvel
-
-        obs, reward, terminated, truncated, __ = env.step(action)
+        obs, reward, terminated, truncated, __ = self.env.step(action)
         next_state = GymGameState(
-            env,
+            None,
             {"last_symbol": "S", "obs": obs},
             production_action=action,
             previous_state=state,
@@ -101,6 +95,28 @@ class GymGame(Game):
 
     def getHash(self, state: GameState) -> typing.Union[str, bytes, int]:
         return str(state)
+
+    def reset_env_to_state(self, state, steps_done):
+        self.env.reset()
+
+        if self.env.spec.id.startswith("bitflip"):
+            self.env._elapsed_steps = steps_done
+            self.env.unwrapped.state = np.copy(state.observation["obs"]["state"])
+            self.env.unwrapped.goal = np.copy(state.observation["obs"]["goal"])
+
+        elif self.env.spec.id.startswith("PointMaze"):
+            # we have 2 wrappers, 3rd one is TimeLimit
+            self.env.env.env._elapsed_steps = steps_done  # TODO: rewrite this?
+            self.env.unwrapped.data.qpos = np.copy(
+                state.observation["obs"]["observation"][:2]
+            )
+            self.env.unwrapped.data.qvel = np.copy(
+                state.observation["obs"]["observation"][2:]
+            )
+            self.env.unwrapped.goal = np.copy(state.observation["obs"]["desired_goal"])
+
+        else:
+            raise NotImplementedError()
 
 
 def make_env(env_str: str, max_episode_steps):
@@ -143,6 +159,7 @@ class DiscreteActionWrapper(gym.ActionWrapper):
 
     def action(self, action):
         box_actions = [
+            # without noop action [0, 0]
             [-1, 0],
             [0, -1],
             [0, 1],
@@ -158,6 +175,10 @@ class DiscreteActionWrapper(gym.ActionWrapper):
 class NegativeRewardWrapper(gym.RewardWrapper):
     def reward(self, reward):
         return 0 if reward == 1 else -1
+
+    def compute_reward_(self, achieved_goal, desired_goal, info):
+        r = self.compute_reward(achieved_goal, desired_goal, info)
+        return 0 if r == 1 else -1
 
 
 class CartPoleWrapper(gym.Wrapper):

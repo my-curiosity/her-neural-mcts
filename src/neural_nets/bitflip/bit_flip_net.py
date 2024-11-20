@@ -35,5 +35,5 @@ class BitFlipNNet:
         self.model = self.create_model()
         self.model.compile(
             loss=["categorical_crossentropy", "mean_squared_error"],
-            optimizer=Adam(learning_rate=0.0005),
+            optimizer=Adam(learning_rate=self.args.lr),
         )

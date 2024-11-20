@@ -54,7 +54,7 @@ class ClassicMCTS:
         self.states_explored_till_perfect_fit = -1
 
     def run_mcts(
-        self, state: GameState, num_mcts_sims, temperature: float
+        self, state: GameState, num_mcts_sims, temperature: float, depth: int = 0
     ) -> typing.Tuple[np.ndarray, float]:
         """
         This function performs 'num_MCTS_sims' simulations of MCTS starting
@@ -88,7 +88,7 @@ class ClassicMCTS:
         # Aggregate root state value over MCTS back-propagated values
         mct_return_list = []
         for num_sim in range(num_mcts_sims):
-            mct_return = self._search(state=state)
+            mct_return = self._search(state=state, depth=depth)
             mct_return_list.append(mct_return)
 
         # MCTS Visit count array for each edge 'a' from root node 's_0'.
@@ -195,6 +195,7 @@ class ClassicMCTS:
         self,
         state: GameState,
         path: typing.Tuple[int, ...] = tuple(),
+        depth: int = 0,
     ) -> (float, bool):
         """
         Recursively perform MCTS search inside the actual environments with
@@ -242,13 +243,19 @@ class ClassicMCTS:
         if (state_hash, a) not in self.Ssa:
             # ask neural net what to do next
             value = self.rollout_for_valid_moves(
-                a=a, state_hash=state_hash, state=state, path=path
+                a=a,
+                state_hash=state_hash,
+                state=state,
+                path=path,
+                depth=depth,
             )
             pass
 
         elif not self.Ssa[(state_hash, a)].done:
             # walk known part of the net
-            value = self._search(state=self.Ssa[(state_hash, a)], path=path + (a,))
+            value = self._search(
+                state=self.Ssa[(state_hash, a)], path=path + (a,), depth=depth + 1
+            )
 
         else:  # is in Ssa and done
             value = 0
@@ -258,10 +265,12 @@ class ClassicMCTS:
         mct_return = self.backup(a=a, state_hash=state_hash, value=value)
         return mct_return
 
-    def rollout_for_valid_moves(self, a, state_hash, state, path):
+    def rollout_for_valid_moves(self, a, state_hash, state, path, depth):
         # explore new part of the tree
         value = 0
-        next_state, reward = self.game.getNextState(state=state, action=a)
+        next_state, reward = self.game.getNextState(
+            state=state, action=a, steps_done=depth
+        )
         next_state_hash = self.game.getHash(state=next_state)
         # Transition statistics.
         self.Rsa[(state_hash, a)] = reward

@@ -14,13 +14,13 @@ class MazeNNet:
         inputs = Input(shape=self.observation_size)
 
         fc1 = Dropout(0.3)(
-            Activation("relu")(BatchNormalization(axis=1)(Dense(1024)(inputs)))
+            Activation("relu")(BatchNormalization(axis=1)(Dense(256)(inputs)))
         )
         fc2 = Dropout(0.3)(
-            Activation("relu")(BatchNormalization(axis=1)(Dense(1024)(fc1)))
+            Activation("relu")(BatchNormalization(axis=1)(Dense(256)(fc1)))
         )
         fc3 = Dropout(0.3)(
-            Activation("relu")(BatchNormalization(axis=1)(Dense(512)(fc2)))
+            Activation("relu")(BatchNormalization(axis=1)(Dense(128)(fc2)))
         )
 
         pi = Dense(self.action_size, activation="softmax", name="pi")(fc3)
@@ -36,5 +36,5 @@ class MazeNNet:
         self.model = self.create_model()
         self.model.compile(
             loss=["categorical_crossentropy", "mean_squared_error"],
-            optimizer=Adam(learning_rate=0.001),
+            optimizer=Adam(learning_rate=self.args.lr),
         )
