@@ -799,6 +799,12 @@ class Config:
             default=1,
             help="Maximum distance between virtual and real goals allowed",
         )
+        parser.add_argument(
+            "--hindsight_combined_experience_replay",
+            type=str2bool,
+            default=False,
+            help="Enables hindsight-combined experience replay (https://www.researchgate.net/publication/346030781)",
+        )
 
         parser.add_argument(
             "--game",

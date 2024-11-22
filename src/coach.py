@@ -132,6 +132,11 @@ class Coach(ABC):
             beta=self.args.prioritize_beta,
         )
 
+        if self.args.hindsight_combined_experience_replay:
+            # C(H)ER: add last transition to the batch
+            # expects real episode history to be saved AFTER hindsight samples
+            sample_coordinates.append((-1, -1))
+
         # Collect training examples for AlphaZero: (o_t, (pi_t, v_t), w_t)
         examples = [
             {
@@ -369,7 +374,6 @@ class Coach(ABC):
         for _ in trange(num_selfplay_iterations, desc="Playing episodes"):
             mcts.clear_tree()
             episode_history = self.execute_one_game(game=game, mcts=mcts)
-            self.trainExamplesHistory.append(episode_history)
             # if isinstance(game, FindEquationGame):
             #     self.log_best_list(game, logger)
 
@@ -401,7 +405,11 @@ class Coach(ABC):
                 )
                 self.trainExamplesHistory.extend(hindsight.create_hindsight_samples())
 
-            self.update_network()
+            # add real history to ER (at the end to access last state transition easily)
+            self.trainExamplesHistory.append(episode_history)
+
+            if self.checkpoint.step > self.args.cold_start_iterations:
+                self.update_network()
 
     # def add_mcts_tree_hindsight(self, game, iteration_train_examples, mcts):
     #     hindsight = Hindsight(
