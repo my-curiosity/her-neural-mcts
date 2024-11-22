@@ -109,7 +109,9 @@ class Coach(ABC):
         """Helper function to format model checkpoint filenames"""
         return f"checkpoint_{iteration}.pth.tar"
 
-    def sampleBatch(self, histories: typing.List[GameHistory]) -> typing.List:
+    def sampleBatch(
+        self, histories: typing.List[GameHistory], batch_i: int
+    ) -> typing.List:
         """
           Sample a batch of data from the current replay buffer (with or without prioritization).
         Construct a batch of data-targets for gradient optimization of the AlphaZero neural network.
@@ -120,7 +122,11 @@ class Coach(ABC):
 
         The targets for the neural network consist of MCTS move probability vectors and TD/ Monte-Carlo returns.
 
+        Optionally uses (Hindsight-) Combined Experience Replay (https://www.researchgate.net/publication/346030781)
+        to guarantee that latest episode transitions are included in the batch
+
         :param histories: List of GameHistory objects. Contains all game-trajectories in the replay-buffer.
+        :param batch_i: Index of the batch being selected in current training iteration. Required for CHER.
         :return: List of training examples: (observations, (move-probabilities, TD/ MC-returns), sample_weights)
         """
         # Generate coordinates within the replay buffer to sample from. Also generate the loss scale of said samples.
@@ -133,9 +139,12 @@ class Coach(ABC):
         )
 
         if self.args.hindsight_combined_experience_replay:
-            # C(H)ER: add last transition to the batch
-            # expects real episode history to be saved AFTER hindsight samples
-            sample_coordinates.append((-1, -1))
+            if len(histories[-1]) >= batch_i + 1:
+                # C(H)ER: add i-th transition starting from episode end to the batch
+                # expects real episode history to be saved AFTER hindsight samples
+                sample_coordinates.append((-1, -(batch_i + 1)))
+                # just to keep both lists equally long
+                sample_weight = np.append(sample_weight, 1)
 
         # Collect training examples for AlphaZero: (o_t, (pi_t, v_t), w_t)
         examples = [
@@ -351,8 +360,10 @@ class Coach(ABC):
     def update_network(self):
         # Backpropagation
         pi_loss, v_loss = 0, 0
-        for _ in range(self.args.num_gradient_steps):
-            batch = self.sampleBatch(list(self.trainExamplesHistory))
+        for i in range(self.args.num_gradient_steps):
+            batch = self.sampleBatch(
+                histories=list(self.trainExamplesHistory), batch_i=i
+            )
             pi_batch_loss, v_batch_loss, _ = self.rule_predictor.train(batch)
             pi_loss += pi_batch_loss
             v_loss += v_batch_loss
