@@ -384,6 +384,7 @@ class Coach(ABC):
             # add hindsight histories to ER
             if self.args.hindsight_samples > 0 and metrics["mode"] == "train":
                 hindsight = Hindsight(
+                    seed=self.args.seed,
                     game=game,
                     mcts=mcts,
                     gamma=self.args.gamma,
@@ -401,7 +402,8 @@ class Coach(ABC):
                 )
                 self.trainExamplesHistory.extend(hindsight.create_hindsight_samples())
 
-            self.update_network()
+            if self.checkpoint.step > self.args.cold_start_iterations:
+                self.update_network()
 
     # def add_mcts_tree_hindsight(self, game, iteration_train_examples, mcts):
     #     hindsight = Hindsight(
