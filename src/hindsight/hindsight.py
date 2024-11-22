@@ -8,6 +8,7 @@ class Hindsight:
     """
     Hindsight Experience Replay for the last played episode.
 
+    :param seed: RNG seed
     :param game: Game instance
     :param episode_history: Last episode history (played by the agent)
     :param mcts: MCTS search tree constructed during last episode
@@ -26,6 +27,7 @@ class Hindsight:
 
     def __init__(
         self,
+        seed,
         game,
         episode_history,
         mcts,
@@ -52,6 +54,9 @@ class Hindsight:
         self.experience_ranking = experience_ranking
         self.experience_ranking_threshold = experience_ranking_threshold
 
+        self.random = random.Random(x=seed)
+        self.np_random = np.random.default_rng(seed=seed)
+
     def create_hindsight_samples(self):
         """
         Creates HER samples for the last played episode.
@@ -72,7 +77,7 @@ class Hindsight:
             # if possible, construct path to each of them from root
             hindsight_trajectories = [
                 self.construct_trajectory_to_state(final_state=s)
-                for s in random.sample(terminal_states, self.num_trajectories)
+                for s in self.random.sample(terminal_states, self.num_trajectories)
             ]
             # add hindsight using constructed trajectories
             for t in hindsight_trajectories:
@@ -175,7 +180,7 @@ class Hindsight:
         # sample
         if len(possible_goals) > 0:
             return zip(
-                *random.sample(
+                *self.random.sample(
                     population=possible_goals,
                     # sample fewer goals if we do not have enough unique observations
                     k=min(len(possible_goals), self.num_samples),
@@ -298,7 +303,7 @@ class Hindsight:
         one_hot = np.zeros(self.game.getActionSize())
         one_hot[episode_actions[index]] = 1
         if self.policy == "one_hot_noisy":
-            one_hot += np.random.random(one_hot.shape) * 1e-2
+            one_hot += self.np_random.random(one_hot.shape) * 1e-2
         return one_hot
 
     def construct_trajectory_to_state(self, final_state):
@@ -352,9 +357,8 @@ class Hindsight:
 
         :return: A list of all terminal states in a search tree.
         """
-        # TODO: correct way to get terminal states?
         return [
             self.mcts.Ssa[key]
             for key in list(self.mcts.Ssa.keys())
-            if self.mcts.times_s_was_visited[key[0]] == 0
+            if self.mcts.Ssa[key].done
         ]

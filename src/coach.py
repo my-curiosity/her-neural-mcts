@@ -399,6 +399,7 @@ class Coach(ABC):
             # add hindsight histories to ER
             if self.args.hindsight_samples > 0 and metrics["mode"] == "train":
                 hindsight = Hindsight(
+                    seed=self.args.seed,
                     game=game,
                     mcts=mcts,
                     gamma=self.args.gamma,

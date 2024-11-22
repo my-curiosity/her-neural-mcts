@@ -31,7 +31,7 @@ class TestA0(unittest.TestCase):
             " --batch_size_training 256"
             " --num_gradient_steps 30"
             " --average_policy_if_wrong False"
-            " --cold_start_iterations 0"
+            " --cold_start_iterations 1"
             " --MCTS_engine Normal"
             " --max_elements_in_best_list 10"
             " --temp_0 1"
