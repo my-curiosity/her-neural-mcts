@@ -129,6 +129,12 @@ class Coach(ABC):
         :param batch_i: Index of the batch being selected in current training iteration. Required for CHER.
         :return: List of training examples: (observations, (move-probabilities, TD/ MC-returns), sample_weights)
         """
+
+        # remove final observation in non-hindsight histories if necessary
+        for h in histories:
+            if len(h.observations) > len(h.probabilities):
+                h.observations = h.observations[:-1]
+
         # Generate coordinates within the replay buffer to sample from. Also generate the loss scale of said samples.
         sample_coordinates, sample_weight = sample_batch(
             list_of_histories=histories,
@@ -189,13 +195,16 @@ class Coach(ABC):
         # Always from perspective of player 1 for boardgames.
         state = game.getInitialState()
 
-        if isinstance(game, FindEquationGame):
-            complete_state = copy.deepcopy(state)
-            formula_started_from = state.observation["current_tree_representation_str"]
-            # self.logger.info(f"")
-            # self.logger.info(
-            #     f"{mode}: equation for {state.observation['true_equation_hash']} is searched"
-            # )
+        formula_started_from = (
+            state.observation["current_tree_representation_str"]
+            if isinstance(game, FindEquationGame)
+            else None
+        )
+        # complete_state = copy.deepcopy(state)
+        # self.logger.info(f"")
+        # self.logger.info(
+        #     f"{mode}: equation for {state.observation['true_equation_hash']} is searched"
+        # )
 
         i = 0
         while not state.done:
@@ -208,23 +217,29 @@ class Coach(ABC):
             )
             # Take a step in the environment and observe the transition and store necessary statistics.
             # TODO: greedy choice only in test?
-            state.action = np.argmax(pi)
+            state.action = np.argmax(pi)  # np.random.choice(len(pi), p=pi)
 
             next_state, r = game.getNextState(
                 state=state, action=state.action, steps_done=i
             )
 
-            if isinstance(game, FindEquationGame):
-                complete_state.syntax_tree.expand_node_with_action(
-                    node_id=complete_state.syntax_tree.nodes_to_expand[0],
-                    action=state.action,
-                    build_syntax_tree_token_based=self.args.build_syntax_tree_token_based,
-                )
+            # if isinstance(game, FindEquationGame):
+            #     complete_state.syntax_tree.expand_node_with_action(
+            #         node_id=complete_state.syntax_tree.nodes_to_expand[0],
+            #         action=state.action,
+            #         build_syntax_tree_token_based=self.args.build_syntax_tree_token_based,
+            #     )
 
             history.capture(state=state, pi=pi, r=r, v=v)
             # Update state of control
             state = next_state
             i += 1
+
+        history.observations.append(state.observation)  # final observation
+        history.syntax_tree = (
+            state.syntax_tree if isinstance(game, FindEquationGame) else None
+        )
+
         # if self.args.training_mode == "mcts" or mode == "test":
         #     self.log_mcts_results(game, history, mcts, mode, next_state)
 
@@ -234,7 +249,7 @@ class Coach(ABC):
                 formula_started_from if isinstance(game, FindEquationGame) else None
             ),
             found_equation=(
-                complete_state.syntax_tree.rearrange_equation_infix_notation(-1)[1]
+                state.syntax_tree.rearrange_equation_infix_notation(-1)[1]
                 if isinstance(game, FindEquationGame)
                 else None
             ),
@@ -390,10 +405,12 @@ class Coach(ABC):
 
             metrics["best_reward_found"].update_state(
                 game.max_list.max_list_state[-1].reward
+                if len(game.max_list.max_list_state) > 0
+                else -1
             )
             metrics["return"].update_state(episode_history.observed_returns[0])
             metrics["percent_solved"].update_state(
-                100 if episode_history.rewards[-1] == self.args.maximum_reward else 0
+                100 if self.episode_solved(episode_history) else 0
             )
 
             # add hindsight histories to ER
@@ -414,6 +431,7 @@ class Coach(ABC):
                     aggressive_returns_lambda=self.args.hindsight_aggressive_returns_lambda,
                     experience_ranking=self.args.hindsight_experience_ranking,
                     experience_ranking_threshold=self.args.hindsight_experience_ranking_threshold,
+                    args=self.args,
                 )
                 self.trainExamplesHistory.extend(hindsight.create_hindsight_samples())
 
@@ -422,6 +440,12 @@ class Coach(ABC):
 
             if self.checkpoint.step > self.args.cold_start_iterations:
                 self.update_network()
+
+    def episode_solved(self, episode_history):
+        if isinstance(self.game, FindEquationGame):
+            return abs(episode_history.rewards[-1] - self.args.maximum_reward) < 0.02
+        else:  # gym
+            return episode_history.rewards[-1] == self.args.maximum_reward
 
     # def add_mcts_tree_hindsight(self, game, iteration_train_examples, mcts):
     #     hindsight = Hindsight(

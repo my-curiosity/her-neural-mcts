@@ -170,6 +170,13 @@ class FindEquationGame(Game):
                 r = 1 + np.maximum(
                     self.args.minimum_reward - 1, -error, dtype=np.float32
                 )
+
+                # r = (
+                #     self.args.maximum_reward
+                #     if error < 0.02
+                #     else self.args.minimum_reward
+                # )  # sparse reward
+
                 self.logger.debug(
                     f"r = {r}  {syntax_tree.rearrange_equation_prefix_notation(new_start_node_id=-1)[1]} \n"
                 )

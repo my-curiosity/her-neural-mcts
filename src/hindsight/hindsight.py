@@ -1,7 +1,10 @@
 import random
 import numpy as np
+from src.game.find_equation_game import FindEquationGame
 from src.game.game_history import GameHistory
 import copy
+from src.generate_datasets.dataset_generator import constant_dict_to_string
+from src.utils.logging import get_log_obj
 
 
 class Hindsight:
@@ -13,16 +16,21 @@ class Hindsight:
     :param episode_history: Last episode history (played by the agent)
     :param mcts: MCTS search tree constructed during last episode
     :param gamma: Discount factor for hindsight rewards
+
     :param trajectory_selection: Trajectory choice: played (=episode_history) or random from the MCTS tree
     :param num_trajectories: Number of trajectories to use (only for random trajectory_selection)
     :param num_samples: Maximum number of goals to sample for each observation
     :param policy: Policy target choice: original from MCTS probabilities, one-hot or one-hot with random noise
+
     :param goal_selection: Strategy for selecting goals: future visited episode states or final state
     :param aggressive_returns_lambda: Multiplication factor for hindsight rewards (returns in our case)
         to attempt countering created bias: http://arxiv.org/abs/1809.02070
     :param experience_ranking: Filtering of virtual goals far away from the original:
         https://ieeexplore.ieee.org/abstract/document/8850705/
     :param experience_ranking_threshold: Maximum distance between virtual and real goals allowed
+
+    Additional parameters for equation discovery:
+    :param args: Other arguments required for constructing syntax trees
     """
 
     def __init__(
@@ -40,19 +48,25 @@ class Hindsight:
         aggressive_returns_lambda=1,
         experience_ranking=False,
         experience_ranking_threshold=1,
+        args=None,
     ):
         self.game = game
         self.episode_history = episode_history
         self.mcts = mcts
         self.gamma = gamma
+
         self.trajectory_selection = trajectory_selection
         self.num_trajectories = num_trajectories
         self.num_samples = num_samples
         self.policy = policy
         self.goal_selection = goal_selection
+
         self.aggressive_returns_lambda = aggressive_returns_lambda
         self.experience_ranking = experience_ranking
         self.experience_ranking_threshold = experience_ranking_threshold
+
+        self.args = args
+        self.logger = get_log_obj(args=args, name="Hindsight")
 
         self.random = random.Random(x=seed)
         self.np_random = np.random.default_rng(seed=seed)
@@ -75,12 +89,12 @@ class Hindsight:
             if len(terminal_states) < self.num_trajectories:
                 return []
             # if possible, construct path to each of them from root
-            hindsight_trajectories = [
+            trajectories = [
                 self.construct_trajectory_to_state(final_state=s)
                 for s in self.random.sample(terminal_states, self.num_trajectories)
             ]
             # add hindsight using constructed trajectories
-            for t in hindsight_trajectories:
+            for t in trajectories:
                 hindsight_histories.extend(
                     self.create_trajectory_hindsight_samples(trajectory=t)
                 )
@@ -107,7 +121,7 @@ class Hindsight:
         # create hindsight history for each sampled goal
         hindsight_histories = [GameHistory() for _ in range(self.num_samples)]
         # for each observation in episode
-        for i in range(len(trajectory.observations)):
+        for i in range(len(trajectory.observations) - 1):  # without the final one
             goal_indices, goal_observations = self.sample_goals(
                 episode_observations=trajectory.observations,
                 i=i,
@@ -128,7 +142,14 @@ class Hindsight:
                 relabeled_observation = self.relabel_observation_goal(
                     observation=trajectory.observations[i],
                     hindsight_goal_observation=goal_observations[g],
+                    syntax_tree=(
+                        trajectory.syntax_tree
+                        if isinstance(self.game, FindEquationGame)
+                        else None
+                    ),
                 )
+                if relabeled_observation is None:
+                    continue  # infinite y or invalid value for equations
                 # choose policy to use
                 if self.policy == "original":
                     hindsight_policy = trajectory.probabilities[i]
@@ -155,8 +176,17 @@ class Hindsight:
                         goal_observation=goal_observations[g],
                     )
                 )
-        # return all non-empty histories
-        return [h for h in hindsight_histories if len(h.observations) > 0]
+        # filter out empty histories
+        hindsight_histories = [
+            h for h in hindsight_histories if len(h.observations) > 0
+        ]
+        # define searched and found equations
+        if isinstance(self.game, FindEquationGame):
+            for h in hindsight_histories:
+                h.found_equation = h.searched_equation = h.observations[0][
+                    "true_equation"
+                ]
+        return hindsight_histories
 
     def sample_goals(self, episode_observations, i):
         """
@@ -205,16 +235,21 @@ class Hindsight:
         # for each future episode observation until virtual goal
         for j in range(observation_index, goal_index):
             # compute and save new reward
-            hindsight_rewards.append(
-                self.get_reward_with_goal(
-                    # current reward is calculated using next observation -> j + 1
-                    observation=episode_observations[j + 1],
-                    goal_observation=goal_observation,
+            if isinstance(self.game, FindEquationGame):
+                hindsight_rewards.append(
+                    self.game.args.maximum_reward if j + 1 == goal_index else 0
                 )
-            )
-            # stop if goal is already reached
-            if hindsight_rewards[-1] == self.game.args.maximum_reward:
-                break
+            else:
+                hindsight_rewards.append(
+                    self.get_reward_with_goal(
+                        # current reward is calculated using next observation -> j + 1
+                        observation=episode_observations[j + 1],
+                        goal_observation=goal_observation,
+                    )
+                )
+                # stop if goal is already reached
+                if hindsight_rewards[-1] == self.game.args.maximum_reward:
+                    break
         # calculate total return for state (and multiply by lambda if aggressive rewards are used)
         return (
             sum(
@@ -226,16 +261,49 @@ class Hindsight:
             * self.aggressive_returns_lambda
         )
 
-    def relabel_observation_goal(self, observation, hindsight_goal_observation):
+    def relabel_observation_goal(
+        self, observation, hindsight_goal_observation, syntax_tree=None
+    ):
         """
         Constructs a copy of current observation with relabeled goal state.
 
         :param observation: Current observation
         :param hindsight_goal_observation: Goal observation
+
+        In case of FindEquationGame we also need:
+        :param syntax_tree: Syntax tree of the last episode
+
         :return: A copy of current observation with relabeled goal state.
         """
         relabeled_observation = copy.deepcopy(observation)
-        if self.game.env.spec.id.startswith("bitflip"):
+        if isinstance(self.game, FindEquationGame):
+            try:
+                y_calc = syntax_tree.evaluate_subtree(
+                    node_id=syntax_tree.start_node.node_id,
+                    dataset=relabeled_observation["data_frame"],
+                )
+                if np.all(np.isfinite(y_calc)):
+                    c_string_backward = constant_dict_to_string(syntax_tree)
+                    equation_string = (
+                        f"{syntax_tree.rearrange_equation_infix_notation(-1)[1]}"
+                    )
+                    relabeled_observation["data_frame"]["y"] = y_calc
+                    relabeled_observation["true_equation"] = (
+                        f"{equation_string}_{c_string_backward}"
+                    )
+                    relabeled_observation["true_equation_hash"] = (
+                        equation_string.strip()
+                    )
+                    return relabeled_observation
+                else:
+                    self.logger.warning("infinite value in y calculation")
+                    return None  # TODO: infinite y?
+            except Exception as e:
+                self.logger.warning(
+                    "y calculation failed: " + getattr(e, "message", repr(e))
+                )
+                return None  # invalid value in y calculation
+        elif self.game.env.spec.id.startswith("bitflip"):
             relabeled_observation["obs"]["goal"] = hindsight_goal_observation["obs"][
                 "state"
             ]
@@ -316,6 +384,11 @@ class Hindsight:
         """
         episode_history = GameHistory()
         current_state = final_state
+        # final observation and syntax tree
+        episode_history.observations.append(final_state.observation)
+        episode_history.syntax_tree = (
+            final_state.syntax_tree if isinstance(self.game, FindEquationGame) else None
+        )
         # repeat until the first state
         while current_state.previous_state:
             # get previous state
@@ -353,12 +426,20 @@ class Hindsight:
 
     def get_mcts_terminal_states(self):
         """
-        Returns a list of all terminal states in a search tree.
+        Returns a list of all terminal states in a search tree. For FindEquationGame
+        we have to make sure syntax trees are complete.
 
         :return: A list of all terminal states in a search tree.
         """
-        return [
-            self.mcts.Ssa[key]
-            for key in list(self.mcts.Ssa.keys())
-            if self.mcts.Ssa[key].done
-        ]
+        if isinstance(self.game, FindEquationGame):
+            return [
+                self.mcts.Ssa[key]
+                for key in list(self.mcts.Ssa.keys())
+                if self.mcts.Ssa[key].syntax_tree.complete
+            ]
+        else:
+            return [
+                self.mcts.Ssa[key]
+                for key in list(self.mcts.Ssa.keys())
+                if self.mcts.Ssa[key].done
+            ]

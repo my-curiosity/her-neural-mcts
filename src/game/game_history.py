@@ -8,6 +8,7 @@ import typing
 
 import numpy as np
 from src.game.game import GameState
+from src.syntax_tree.syntax_tree import SyntaxTree
 
 
 @dataclass
@@ -34,6 +35,7 @@ class GameHistory:
         default_factory=list
     )  # z_t: Training targets for the value function
     terminated: bool = False  # Whether the environment has terminated
+    syntax_tree: SyntaxTree = None
 
     def __len__(self) -> int:
         """Get length of current stored trajectory"""
