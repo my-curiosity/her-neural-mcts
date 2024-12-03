@@ -150,7 +150,7 @@ class TestA0(unittest.TestCase):
             " --balance_buffer False"
             " --use-puct True"
             " --training_mode mcts"
-            " --hindsight_samples 0"
+            " --hindsight_samples 8"
             " --hindsight_policy original"
             " --hindsight_goal_selection future"
             " --hindsight_trajectory_selection played"
@@ -158,11 +158,14 @@ class TestA0(unittest.TestCase):
             " --hindsight_experience_ranking False"
             " --hindsight_experience_ranking_threshold 0.5"
             " --hindsight_num_trajectories 1"
+            " --hindsight_combined_experience_replay False"
             " --game maze"
             " --max_episode_steps 250"
             " --project_name her-neural-mcts-mmaze"
             " --lr 0.0005"
             " --load_pretrained False"
+            " --reward_noise 0"
+            " --maze_diverse_goals False"
         ).split()
         run()
 

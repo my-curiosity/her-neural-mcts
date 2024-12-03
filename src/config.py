@@ -839,6 +839,19 @@ class Config:
             help="Set to true to use the saved models",
         )
 
+        parser.add_argument(
+            "--reward_noise",
+            type=np.float32,
+            default=0.0,
+            help="Controls the amount of noise to add to state rewards",
+        )
+        parser.add_argument(
+            "--maze_diverse_goals",
+            type=str2bool,
+            default=False,
+            help="Set to true to force goal diversity when resetting PointMaze",
+        )
+
         args = parser.parse_args()
         if args.seed is None:
             args.seed = int(time.time())

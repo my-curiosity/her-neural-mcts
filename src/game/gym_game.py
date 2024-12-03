@@ -1,4 +1,5 @@
 import copy
+import random
 import typing
 import warnings
 
@@ -41,6 +42,12 @@ class GymGame(Game):
         self.env = env
         self.max_list = MaxList(self.args)
 
+        self.goals = (
+            {}
+            if self.args.maze_diverse_goals and self.env.spec.id.startswith("PointMaze")
+            else None
+        )
+
         self.env.reset(seed=args.seed)
         a_size = self.getActionSize()
 
@@ -51,7 +58,22 @@ class GymGame(Game):
         add_prior(self.grammar, args)
 
     def getInitialState(self) -> GymGameState:
-        obs, _ = self.env.reset()
+        if self.args.maze_diverse_goals and self.env.spec.id.startswith("PointMaze"):
+            # force rarely selected goal cells
+            goal = None
+            # reset if goal cell has been selected in more than 10% cases
+            while goal is None or self.goals.get(goal, 0) > 0.1 * sum(
+                self.goals.values()
+            ):
+                obs, _ = self.env.reset()
+                goal = str(
+                    self.env.unwrapped.maze.cell_xy_to_rowcol(self.env.unwrapped.goal)
+                )
+            # update stats
+            self.goals[goal] = self.goals.get(goal, 0) + 1
+        else:
+            obs, _ = self.env.reset()
+
         return GymGameState(None, {"last_symbol": "S", "obs": obs})
 
     def getDimensions(self) -> typing.Tuple[int, ...]:
@@ -67,6 +89,11 @@ class GymGame(Game):
         self.reset_env_to_state(state=state, steps_done=steps_done)
 
         obs, reward, terminated, truncated, __ = self.env.step(action)
+
+        if reward != self.args.maximum_reward:
+            # add random noise to reward if needed
+            reward += (random.random() - 0.5) * self.args.reward_noise
+
         next_state = GymGameState(
             None,
             {"last_symbol": "S", "obs": obs},

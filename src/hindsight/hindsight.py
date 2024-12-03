@@ -250,6 +250,11 @@ class Hindsight:
                 # stop if goal is already reached
                 if hindsight_rewards[-1] == self.game.args.maximum_reward:
                     break
+                else:
+                    # add random noise to reward if needed
+                    hindsight_rewards[-1] += (
+                        self.random.random() - 0.5
+                    ) * self.args.reward_noise
         # calculate total return for state (and multiply by lambda if aggressive rewards are used)
         return (
             sum(
