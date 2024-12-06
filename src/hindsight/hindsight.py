@@ -330,15 +330,20 @@ class Hindsight:
         :return: Game reward for current observation with specified goal.
         """
         if self.game.env.spec.id.startswith("bitflip"):
-            return self.game.env.reward(
+            return self.game.env.unwrapped.reward(
                 state=observation["obs"]["state"],
                 goal=goal_observation["obs"]["state"],
             )
         elif self.game.env.spec.id.startswith("PointMaze"):
-            return self.game.env.compute_reward_(
-                achieved_goal=observation["obs"]["achieved_goal"],
-                desired_goal=goal_observation["obs"]["achieved_goal"],
-                info={},
+            # NegativeRewardWrapper is not applied here,
+            # so we need -1 for binary negative rewards
+            return (
+                self.game.env.unwrapped.compute_reward(
+                    observation["obs"]["achieved_goal"],
+                    goal_observation["obs"]["achieved_goal"],
+                    {},
+                )
+                - 1
             )
         else:
             raise NotImplementedError()

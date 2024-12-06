@@ -1,6 +1,5 @@
 import tensorflow as tf
 from definitions import ROOT_DIR
-import numpy as np
 
 
 def copy_dataset_encoder_weights_from_pretrained_agent(

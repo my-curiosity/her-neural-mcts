@@ -9,7 +9,7 @@ from src.utils.logging import get_log_obj
 from src.constant_fitting.contant_fitting import refit_all_constants
 import hashlib
 import math
-from src.game.rewards import Mse, ReMSe
+from src.game.rewards import Mse
 from src.utils.error import NonFiniteError
 from src.equation_classes.max_list import MaxList
 import re

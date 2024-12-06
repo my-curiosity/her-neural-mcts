@@ -1,10 +1,6 @@
-import pandas as pd
-import tensorflow as tf
 from src.syntax_tree.syntax_tree import SyntaxTree
 import copy
 from src.syntax_tree.state import State
-import warnings
-import numpy as np
 from src.utils.error import NonFiniteError
 
 

@@ -1,5 +1,4 @@
 import copy
-from nltk.grammar import is_terminal
 import bisect
 
 

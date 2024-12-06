@@ -1,10 +1,6 @@
 import tensorflow as tf
-from pathlib import Path
-import pandas as pd
 from definitions import ROOT_DIR
 import numpy as np
-from src.utils.get_grammar import get_grammar_from_string
-from src.generate_datasets.grammars import get_grammars
 from src.generate_datasets.dataset_generator import get_all_symbols_usable
 
 

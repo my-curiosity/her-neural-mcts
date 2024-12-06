@@ -1,11 +1,9 @@
 from pathlib import Path
 from src.game.game_history import GameHistory
-import pandas as pd
 from src.game.find_equation_game import FindEquationGame
-from src.utils.get_grammar import read_grammar_file
 import numpy as np
 import os
-from pickle import Pickler, Unpickler, HIGHEST_PROTOCOL
+from pickle import Pickler, HIGHEST_PROTOCOL
 from collections import deque
 from src.utils.get_grammar import get_grammar_from_string
 from src.generate_datasets.grammars import get_grammars

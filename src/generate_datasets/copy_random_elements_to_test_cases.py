@@ -1,5 +1,4 @@
 import os
-import random
 import shutil
 
 # Path to your folder

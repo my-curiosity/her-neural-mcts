@@ -203,10 +203,6 @@ class NegativeRewardWrapper(gym.RewardWrapper):
     def reward(self, reward):
         return 0 if reward == 1 else -1
 
-    def compute_reward_(self, achieved_goal, desired_goal, info):
-        r = self.compute_reward(achieved_goal, desired_goal, info)
-        return 0 if r == 1 else -1
-
 
 class CartPoleWrapper(gym.Wrapper):
     def step(self, action):

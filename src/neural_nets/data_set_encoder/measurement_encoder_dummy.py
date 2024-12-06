@@ -1,8 +1,6 @@
 import numpy as np
 import tensorflow as tf
 import pandas as pd
-import sklearn.preprocessing as sk_prepros
-from src.utils.error import NonFiniteError
 
 
 class MeasurementEncoderDummy(tf.keras.Model):

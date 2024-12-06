@@ -1,5 +1,4 @@
 from src.syntax_tree.syntax_tree import SyntaxTree
-import pandas as pd
 
 
 def refit_all_constants(finished_state, args):

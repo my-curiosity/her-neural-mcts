@@ -1,5 +1,4 @@
 import tensorflow as tf
-import numpy as np
 
 
 def prepare_for_contrastive_loss(input_encoder_measurement, axis_to_split):

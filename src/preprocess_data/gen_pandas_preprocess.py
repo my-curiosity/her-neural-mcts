@@ -1,12 +1,6 @@
-import random
-from pathlib import Path
 import pandas as pd
 import numpy as np
-from definitions import ROOT_DIR
-import tensorflow as tf
-import tensorflow_text as tf_text
 from src.preprocess_data.equation_preprocess_dummy import EquationPreprocessDummy
-from pcfg import PCFG
 from src.generate_datasets.grammars import get_grammars
 from src.generate_datasets.dataset_generator import DatasetGenerator
 from src.utils.get_grammar import get_grammar_from_string

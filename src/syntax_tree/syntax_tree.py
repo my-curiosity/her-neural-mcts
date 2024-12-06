@@ -1,7 +1,3 @@
-import traceback
-
-import tqdm
-
 from src.equation_classes.math_class.plus import Plus
 from src.equation_classes.node import Node
 from src.equation_classes.math_class.terminal import Terminal

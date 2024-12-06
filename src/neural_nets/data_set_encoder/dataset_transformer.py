@@ -1,8 +1,6 @@
 import tensorflow as tf
 from itertools import cycle
 from src.neural_nets.data_set_encoder.dataset_modules import MHSA
-from sklearn.preprocessing import normalize
-import numpy as np
 from src.neural_nets.data_set_encoder.measurement_encoder_dummy import (
     MeasurementEncoderDummy,
 )

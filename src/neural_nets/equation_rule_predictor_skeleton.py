@@ -8,8 +8,6 @@ from src.utils.tensors import expand_tensor_to_same_size
 from src.utils.logging import get_log_obj
 from src.utils.tensors import check_for_non_numeric_and_replace_by_0
 from src.utils.tensors import tf_save_cast_to_float_32
-import tensorboard
-import time
 from src.neural_nets.loss import NT_Xent
 
 

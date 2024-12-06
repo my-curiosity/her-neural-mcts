@@ -1,6 +1,5 @@
 from src.syntax_tree.syntax_tree import SyntaxTree
 import random
-from pcfg import PCFG
 from nltk.grammar import Nonterminal
 
 

@@ -1,9 +1,6 @@
 from src.utils.error import NonFiniteError
 import numpy as np
 
-from src.utils.error import NonFiniteError
-import numpy as np
-
 
 class HelperObjectConstantFitting:
     def __init__(self, node_to_evaluate, node_id):

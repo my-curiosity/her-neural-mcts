@@ -10,10 +10,7 @@ Notes:
  - Documentation 15/11/2020
 """
 
-import copy
-import logging
 import os
-import sys
 import typing
 from pickle import Pickler, Unpickler, HIGHEST_PROTOCOL
 from collections import deque
@@ -24,22 +21,14 @@ from tqdm import trange
 
 from src.game.find_equation_game import FindEquationGame
 from src.game.game_history import GameHistory, sample_batch
-import time
 from datetime import datetime
 import tensorflow as tf
 import wandb
 
-from src.game.gym_game import GymGame
 from src.utils.logging import get_log_obj
 from src.utils.files import highest_number_in_files
 from definitions import ROOT_DIR
-import random
-from src.preprocess_data.equation_preprocess_dummy import (
-    equation_to_action_sequence,
-    get_dict_token_to_action,
-)
 from src.hindsight.hindsight import Hindsight
-from src.utils.utils import tie_breaking_argmax
 
 
 class Coach(ABC):

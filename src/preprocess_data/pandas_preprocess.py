@@ -3,8 +3,6 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from definitions import ROOT_DIR
-import tensorflow as tf
-import tensorflow_text as tf_text
 from src.preprocess_data.equation_preprocess_dummy import EquationPreprocessDummy
 
 
