@@ -1,5 +1,5 @@
 absl-py==1.4.0
-array_record==0.5.1
+array-record==0.5.1
 astunparse==1.6.3
 black==24.8.0
 bleach==6.1.0
@@ -40,9 +40,9 @@ httplib2==0.22.0
 huggingface-hub==0.24.7
 idna==3.10
 imageio==2.36.1
-importlib_metadata==8.5.0
-importlib_resources==6.4.5
-Jinja2==3.1.4
+importlib-metadata==8.5.0
+importlib-resources==6.4.5
+jinja2==3.1.4
 joblib==1.4.2
 kaggle==1.6.17
 keras==2.8.0
@@ -65,7 +65,7 @@ opt-einsum==3.3.0
 packaging==24.1
 pandas==2.2.2
 pathspec==0.12.1
-pcfg==0.1.5
+pcfg==0.1.0
 pettingzoo==1.24.3
 pillow==10.4.0
 platformdirs==4.3.3
@@ -76,7 +76,7 @@ protobuf==3.19.6
 psutil==6.0.0
 py-cpuinfo==9.0.0
 pyasn1==0.6.1
-pyasn1_modules==0.4.1
+pyasn1-modules==0.4.1
 pycocotools==2.0.8
 PyOpenGL==3.1.7
 pyparsing==3.1.4
@@ -124,12 +124,12 @@ tomli==2.0.2
 tqdm==4.66.5
 transformers==4.18.0
 typeguard==2.13.3
-typing_extensions==4.12.2
+typing-extensions==4.12.2
 tzdata==2024.1
 uritemplate==4.1.1
 urllib3==2.2.3
 wandb==0.17.5
 webencodings==0.5.1
-Werkzeug==3.0.4
+werkzeug==3.0.4
 wrapt==1.16.0
 zipp==3.20.2
