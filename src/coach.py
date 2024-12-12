@@ -277,7 +277,7 @@ class Coach(ABC):
 
             test_now = (
                 self.args.test_generalization != "off"
-                and self.checkpoint.step % self.args.test_every_n_steps == 0
+                and self.checkpoint.step % self.args.test_every_n_steps == 1
             )
 
             if test_now:
