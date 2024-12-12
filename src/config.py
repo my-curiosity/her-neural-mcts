@@ -60,20 +60,7 @@ class Config:
             type=str,
         )
         parser.add_argument(
-            "--generate_new_training_data",
-            type=str2bool,
-            default=True,
-            help="If MCTS should be run for training."
-            "If False, only replay buffer is used.",
-        )
-        parser.add_argument(
-            "--only_test",
-            type=str2bool,
-            default=False,
-            help="If only test mode should be run",
-        )
-        parser.add_argument(
-            "--seed", type=int, required=True, help="Seed for expeiment"
+            "--seed", type=int, required=True, help="Seed for experiment"
         )
         parser.add_argument(
             "--minutes_to_run",
@@ -81,7 +68,7 @@ class Config:
             help="Maximal time the experiment is allowed to run",
         )
         parser.add_argument(
-            "--max_iteration_to_run", type=int, default=200, help="Number of itertion"
+            "--max_iteration_to_run", type=int, default=200, help="Number of iteration"
         )
         parser.add_argument(
             "--logging_level",
@@ -779,7 +766,7 @@ class Config:
             "--hindsight_num_trajectories",
             type=int,
             default=1,
-            help="Number of mcts tree trajectories used. Always 1 if hindsight_trajectory_selection == final",
+            help="Number of mcts tree trajectories used. Always 1 if hindsight_trajectory_selection == played",
         )
         parser.add_argument(
             "--hindsight_aggressive_returns_lambda",
@@ -846,10 +833,11 @@ class Config:
             help="Controls the amount of noise to add to state rewards",
         )
         parser.add_argument(
-            "--maze_diverse_goals",
-            type=str2bool,
-            default=False,
-            help="Set to true to force goal diversity when resetting PointMaze",
+            "--test_generalization",
+            type=str,
+            choices=["unseen", "rare", "off"],
+            default="off",
+            help="Test generalization of learned behaviour to new goals",
         )
 
         args = parser.parse_args()

@@ -52,11 +52,11 @@ class BitFlipEnv(gym.Env):
         return self._get_obs(), self.reward(), self._terminated(), False, {}
 
     def reset(self, seed=None, options=None):
-        super().reset(seed=seed)
+        super().reset(seed=None)
         self.state = np.array([random.getrandbits(1) for _ in range(self.num_bits)])
-        self.goal = self.state
+        self.goal = options["goal"] if options is not None else self.state
         while np.array_equal(self.goal, self.state):
-            self.goal = np.array([random.getrandbits(1) for _ in range(self.num_bits)])
+            self.state = np.array([random.getrandbits(1) for _ in range(self.num_bits)])
         return self._get_obs(), {}
 
     def _get_obs(self):

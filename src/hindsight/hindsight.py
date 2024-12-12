@@ -128,16 +128,6 @@ class Hindsight:
             )
             # for each virtual goal
             for g in range(len(goal_observations)):
-                # skip goals too far away from original
-                if (
-                    self.experience_ranking
-                    and self.compute_distance_to_original_goal(
-                        virtual_goal_observation=goal_observations[g]
-                    )
-                    > self.experience_ranking_threshold
-                ):
-                    g -= 1  # we did not accept this goal -> reduce the counter
-                    continue
                 # change original observation goal
                 relabeled_observation = self.relabel_observation_goal(
                     observation=trajectory.observations[i],
@@ -207,6 +197,16 @@ class Hindsight:
             possible_goals = [indexed_observations[-1]]
         else:
             raise NotImplementedError()
+
+        # skip goals too far away from original if needed
+        if self.experience_ranking:
+            possible_goals = [
+                g
+                for g in possible_goals
+                if self.compute_distance_to_original_goal(virtual_goal_observation=g[1])
+                <= self.experience_ranking_threshold
+            ]
+
         # sample
         if len(possible_goals) > 0:
             return zip(

@@ -1,8 +1,5 @@
-import copy
 import random
 import typing
-import warnings
-
 import gymnasium as gym
 import gymnasium_robotics
 import numpy as np
@@ -10,13 +7,6 @@ from pcfg import PCFG
 from src.utils.get_grammar import add_prior
 from src.game.game import Game, GameState
 from src.equation_classes.max_list import MaxList
-import math
-
-try:
-    import compiler_gym  # noqa: F401
-    from compiler_gym.spaces import Commandline, CommandlineFlag  # noqa
-except ImportError:
-    warnings.warn(message="CompilerGym not found. Proceeding without it.")
 
 
 class GymGameState(GameState):
@@ -42,11 +32,19 @@ class GymGame(Game):
         self.env = env
         self.max_list = MaxList(self.args)
 
-        self.goals = (
-            {}
-            if self.args.maze_diverse_goals and self.env.spec.id.startswith("PointMaze")
-            else None
-        )
+        self.goals = {}
+        if self.env.spec.id.startswith("PointMaze"):
+            cells = [
+                self.env.unwrapped.maze.cell_xy_to_rowcol(c).tolist()
+                for c in self.env.unwrapped.maze.unique_goal_locations
+            ]
+            # 1/4 cells are blocked
+            self.blocked_goals = random.sample(cells, int(len(cells) / 4))
+        else:  # bitflip
+            self.blocked_goals = [
+                [random.getrandbits(1) for _ in range(self.args.bitflip_num_bits)]
+                for _ in range(10000)
+            ]
 
         self.env.reset(seed=args.seed)
         a_size = self.getActionSize()
@@ -57,22 +55,36 @@ class GymGame(Game):
         self.max_path_length = self.env.spec.max_episode_steps
         add_prior(self.grammar, args)
 
-    def getInitialState(self) -> GymGameState:
-        if self.args.maze_diverse_goals and self.env.spec.id.startswith("PointMaze"):
-            # force rarely selected goal cells
+    def getInitialState(self, mode="train") -> GymGameState:
+        if mode == "test":
+            if self.args.test_generalization == "unseen":
+                # force unseen goals only
+                goal = random.choice(self.blocked_goals)
+            elif self.args.test_generalization == "rare":
+                # force least frequent goals
+                goal = np.array(sorted(self.goals.items(), key=lambda g: g[1])[0][0])
+                self.goals[tuple(goal)] += 1  # update stats
+            else:
+                raise NotImplementedError
+            # reset env with chosen goal
+            if self.env.spec.id.startswith("PointMaze"):
+                obs, _ = self.env.reset(options={"goal_cell": goal})
+            else:  # bitflip
+                obs, _ = self.env.reset(options={"goal": goal})
+
+        else:  # train
             goal = None
-            # reset if goal cell has been selected in more than 10% cases
-            while goal is None or self.goals.get(goal, 0) > 0.1 * sum(
-                self.goals.values()
+            while goal is None or (
+                self.args.test_generalization == "unseen" and goal in self.blocked_goals
             ):
                 obs, _ = self.env.reset()
-                goal = str(
+                goal = (
                     self.env.unwrapped.maze.cell_xy_to_rowcol(self.env.unwrapped.goal)
-                )
+                    if self.env.spec.id.startswith("PointMaze")
+                    else obs["goal"]
+                ).tolist()
             # update stats
-            self.goals[goal] = self.goals.get(goal, 0) + 1
-        else:
-            obs, _ = self.env.reset()
+            self.goals[tuple(goal)] = self.goals.get(tuple(goal), 0) + 1
 
         return GymGameState(None, {"last_symbol": "S", "obs": obs})
 
@@ -160,19 +172,6 @@ def make_env(env_str: str, max_episode_steps):
                 )
             )
         )
-    elif env_str == "CartPole-v1":
-        return CartPoleWrapper(gym.make(env_str, max_episode_steps=max_episode_steps))
-    elif env_str == "CliffWalking-v0":
-        return CliffWrapper(gym.make(env_str, max_episode_steps=max_episode_steps))
-    elif env_str.startswith("cbench"):
-        CompilerGymWrapper.env = compiler_gym.make(
-            "llvm-v0",  # compiler to use
-            benchmark=env_str,  # program to compile
-            observation_space="Autophase",  # observation space
-            reward_space="IrInstructionCountOz",  # optimization target
-            max_episode_steps=max_episode_steps,
-        )
-        return CompilerGymWrapper()
     elif env_str in list(gym.envs.registry.keys()):
         return gym.make(env_str)
     else:
@@ -202,112 +201,3 @@ class DiscreteActionWrapper(gym.ActionWrapper):
 class NegativeRewardWrapper(gym.RewardWrapper):
     def reward(self, reward):
         return 0 if reward == 1 else -1
-
-
-class CartPoleWrapper(gym.Wrapper):
-    def step(self, action):
-        obs, _, term, trunc, info = super().step(action)
-        done = term or trunc
-        return obs, -1.005 * done + 0.005, done, trunc, info
-
-
-class CliffWrapper(gym.Wrapper):
-    def step(self, action):
-        obs, reward, term, trunc, info = super().step(action)
-        done = term or trunc
-        return obs, done + 1 + reward, done, trunc, info
-
-
-class CompilerGymWrapper:
-    max_list = MaxList(10)
-    env = None
-
-    def __init__(self):
-        env = CompilerGymWrapper.env
-        assert env.spec is not None
-        self._max_episode_steps = env.spec.max_episode_steps
-        self._elapsed_steps = None
-        self.selected_actions = []
-        terminal = CommandlineFlag(
-            name="end-of-episode",
-            flag="# end-of-episode",
-            description="End the episode",
-        )
-        self.action_space = Commandline(
-            items=[
-                CommandlineFlag(
-                    name=name,
-                    flag=flag,
-                    description=description,
-                )
-                for name, flag, description in zip(
-                    env.action_space.names,
-                    env.action_space.flags,
-                    env.action_space.descriptions,
-                )
-            ]
-            + [terminal],
-            name=f"{type(self).__name__}<{env.action_space.name}>",
-        )
-        self.terminal_action: int = len(self.action_space.flags) - 1
-        self.observation_space = env.observation_space
-        self.reward_space = env.reward_space
-        self.observation_space_spec = env.observation_space_spec
-        self.spec = env.spec
-
-    def reset(self, seed=None):  # noqa: F841
-        self._elapsed_steps = 0
-        self.selected_actions = []
-        return self.selected_actions, {}
-
-    def step(self, action):
-        reward = [0.0]
-        done = False
-        trunc = False
-        info = ""
-        terminal_action_selected = action == self.terminal_action
-
-        if not terminal_action_selected:
-            self.selected_actions.append(action)
-
-        if (
-            len(self.selected_actions) >= self._max_episode_steps
-        ) or terminal_action_selected:
-            obs, reward, done, info = self.multistep(
-                self.selected_actions,
-                observation_spaces=[self.observation_space],
-                reward_spaces=[self.reward_space],
-                observations=[self.observation_space_spec],
-                rewards=[self.reward_space],
-            )
-            if math.isfinite(reward[0]):
-                CompilerGymWrapper.max_list.add(state=self.selected_actions, key=reward)
-
-            if len(self.selected_actions) >= self._max_episode_steps:
-                trunc = True
-            else:
-                trunc = False
-        if terminal_action_selected:
-            self.selected_actions.append(action)
-            done = True
-
-        return self.selected_actions, reward[-1], done, trunc, info
-
-    def multistep(self, actions, **kwargs):
-        env = CompilerGymWrapper.env
-        env.reset()
-        actions = list(actions)
-        assert (
-            self._elapsed_steps is not None
-        ), "Cannot call env.step() before calling reset()"
-        observation, reward, done, info = env.multistep(actions, **kwargs)
-        self._elapsed_steps += len(actions)
-        if self._elapsed_steps >= self._max_episode_steps:
-            info["TimeLimit.truncated"] = not done
-            done = True
-
-        return observation, reward, done, info
-
-    @staticmethod
-    def close():
-        CompilerGymWrapper.env.close()
