@@ -42,7 +42,7 @@ class FindEquationGame(Game):
         self.action_size = len(self.grammar._productions)
         self.dataset_columns = self.reader.dataset_columns
 
-    def getInitialState(self) -> GameState:
+    def getInitialState(self, mode="train") -> GameState:
         self.max_list = MaxList(self.args)
         batch_data = next(self.iterator)
         observations = {
