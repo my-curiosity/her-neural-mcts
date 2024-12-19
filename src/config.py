@@ -839,6 +839,12 @@ class Config:
             default="off",
             help="Test generalization of learned behaviour to new goals",
         )
+        parser.add_argument(
+            "--record_video",
+            type=str2bool,
+            default=True,
+            help="Set to true to record PointMaze games",
+        )
 
         args = parser.parse_args()
         if args.seed is None:

@@ -15,6 +15,9 @@ import typing
 from pickle import Pickler, Unpickler, HIGHEST_PROTOCOL
 from collections import deque
 from abc import ABC
+import gymnasium as gym
+from gymnasium.wrappers import RecordVideo
+from moviepy import VideoFileClip, concatenate_videoclips
 
 import numpy as np
 from tqdm import trange
@@ -25,6 +28,12 @@ from datetime import datetime
 import tensorflow as tf
 import wandb
 
+from src.game.gym_game import (
+    DiscreteActionWrapper,
+    NegativeRewardWrapper,
+    reset_env_to_state,
+    GymGameState,
+)
 from src.utils.logging import get_log_obj
 from src.utils.files import highest_number_in_files
 from definitions import ROOT_DIR
@@ -323,8 +332,10 @@ class Coach(ABC):
         metrics["reward"].reset_state()
         metrics["return"].reset_state()
         metrics["solved"].reset_state()
+        video_dir = os.getcwd() + "/video/"
+        video_paths = []
 
-        for _ in trange(
+        for i in trange(
             num_selfplay_iterations,
             desc=(
                 "Playing episodes" if metrics["mode"] == "train" else "Testing episodes"
@@ -345,6 +356,14 @@ class Coach(ABC):
             metrics["solved"].update_state(
                 100 if self.episode_solved(episode_history) else 0
             )
+
+            # record episode video for better visualization
+            if self.args.record_video and self.args.game == "maze":
+                video_paths.append(
+                    self.record_game_video(
+                        video_dir, episode_history, i, metrics["mode"]
+                    )
+                )
 
             if metrics["mode"] == "train":
                 # add hindsight histories to ER
@@ -376,6 +395,10 @@ class Coach(ABC):
 
                 if self.checkpoint.step > self.args.cold_start_iterations:
                     self.update_network()
+
+        # save and upload a concatenation of all game videos from this iteration
+        if self.args.record_video and self.args.game == "maze":
+            self.save_iteration_video(video_dir, video_paths, metrics["mode"])
 
     def episode_solved(self, episode_history):
         if isinstance(self.game, FindEquationGame):
@@ -439,3 +462,57 @@ class Coach(ABC):
                     self.trainExamplesHistory = Unpickler(f).load()
             else:
                 self.logger.info(f"No replay buffer found. Use empty one.")
+
+    def record_game_video(self, video_dir, episode_history, idx, mode):
+        video_prefix = (
+            ("solved" if self.episode_solved(episode_history) else "unsolved")
+            + "_iter"
+            + str(int(self.checkpoint.step))
+            + ("_test" if mode == "test" else "_train")
+            + "_game"
+            + str(idx)
+        )
+        video_env = NegativeRewardWrapper(
+            DiscreteActionWrapper(
+                RecordVideo(
+                    env=gym.make(
+                        "PointMaze_Medium-v3",
+                        reward_type="sparse",
+                        continuing_task=False,
+                        reset_target=False,
+                        max_episode_steps=self.args.max_episode_steps,
+                        render_mode="rgb_array",
+                    ),
+                    video_folder=video_dir,
+                    name_prefix=video_prefix,
+                    episode_trigger=lambda x: True,
+                )
+            )
+        )
+        # reset env to starting state and execute chosen actions
+        reset_env_to_state(
+            video_env,
+            GymGameState(None, episode_history.observations[0]),
+            0,
+        )
+        for j in range(len(episode_history.actions)):
+            action = episode_history.actions[j]
+            obs, reward, terminated, truncated, _ = video_env.step(action)
+            video_env.render()
+            if terminated or truncated:
+                break
+        video_env.close()
+        # return video path
+        return video_dir + video_prefix + "-episode-0.mp4"
+
+    def save_iteration_video(self, video_dir, video_paths, mode):
+        iter_video = concatenate_videoclips([VideoFileClip(p) for p in video_paths])
+        iter_video_path = (
+            video_dir
+            + "iter"
+            + str(int(self.checkpoint.step))
+            + ("_test" if mode == "test" else "_train")
+            + ".mp4"
+        )
+        iter_video.write_videofile(iter_video_path)
+        wandb.log({"video": wandb.Video(iter_video_path, format="mp4")})
