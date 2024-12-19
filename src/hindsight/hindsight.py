@@ -382,6 +382,8 @@ class Hindsight:
         one_hot[episode_actions[index]] = 1
         if self.policy == "one_hot_noisy":
             one_hot += self.np_random.random(one_hot.shape) * 1e-2
+            # normalize to create a valid distribution
+            one_hot = np.divide(one_hot, np.sum(one_hot))
         return one_hot
 
     def construct_trajectory_to_state(self, final_state):
