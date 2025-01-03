@@ -1,17 +1,19 @@
-from src.syntax_tree.syntax_tree import SyntaxTree
+from src.equation_modules.syntax_tree.syntax_tree import SyntaxTree
 from src.game.game import Game, GameState
 import typing
 import numpy as np
-from src.preprocess_data.pandas_preprocess import PandasPreprocess
-from src.preprocess_data.gen_pandas_preprocess import GenPandasPreprocess
+from src.equation_modules.preprocess_data.pandas_preprocess import PandasPreprocess
+from src.equation_modules.preprocess_data.gen_pandas_preprocess import (
+    GenPandasPreprocess,
+)
 from copy import deepcopy
 from src.utils.logging import get_log_obj
-from src.constant_fitting.contant_fitting import refit_all_constants
+from src.equation_modules.constant_fitting.contant_fitting import refit_all_constants
 import hashlib
 import math
 from src.game.rewards import Mse
 from src.utils.error import NonFiniteError
-from src.equation_classes.max_list import MaxList
+from src.equation_modules.equation_classes.max_list import MaxList
 import re
 
 
@@ -167,15 +169,15 @@ class FindEquationGame(Game):
                     y_pred=y_calc, y_true=y_true
                 )  # ReMSe(y_pred=y_calc, y_true=y_true)
                 # returns error in the range -1 to 1
-                r = 1 + np.maximum(
-                    self.args.minimum_reward - 1, -error, dtype=np.float32
-                )
+                # r = 1 + np.maximum(
+                #     self.args.minimum_reward - 1, -error, dtype=np.float32
+                # )
 
-                # r = (
-                #     self.args.maximum_reward
-                #     if error < 0.02
-                #     else self.args.minimum_reward
-                # )  # sparse reward
+                r = (
+                    self.args.maximum_reward
+                    if error < 0.001
+                    else self.args.minimum_reward
+                )  # sparse reward
 
                 self.logger.debug(
                     f"r = {r}  {syntax_tree.rearrange_equation_prefix_notation(new_start_node_id=-1)[1]} \n"

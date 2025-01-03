@@ -34,7 +34,7 @@ def mean_abs_error(real, pred):
     return loss
 
 
-### This is the SimCLRLoss from kerasCV.
+# This is the SimCLRLoss from kerasCV.
 # To not add another dependency the calls to kerascv funktion are replaced by its tf equivalents
 
 LARGE_NUM = 1e9
@@ -69,15 +69,17 @@ def shape(x):
 
 
 class NT_Xent(tf.keras.layers.Layer):
-    """Normalized temperature-scaled CrossEntropy loss [1]
-    [1] T. Chen, S. Kornblith, M. Norouzi, and G. Hinton, “A simple framework for contrastive learning of visual representations,” arXiv. 2020, Accessed: Jan. 15, 2021. [Online]. Available: https://github.com/google-research/simclr.
-    From https://github.com/gabriel-vanzandycke/tf_layers/blob/main/tf_layers/layers.py
+    """Normalized temperature-scaled CrossEntropy loss [1] [1] T. Chen, S. Kornblith, M. Norouzi, and G. Hinton,
+    “A simple framework for contrastive learning of visual representations,” arXiv. 2020, Accessed: Jan. 15,
+    2021. [Online]. Available: https://github.com/google-research/simclr. From
+    https://github.com/gabriel-vanzandycke/tf_layers/blob/main/tf_layers/layers.py
     """
 
     def __init__(self, args, **kwargs):
         self.args = args
         super().__init__(**kwargs)
-        # closer to -1 indicate greater similarity, 0 indicates orthogonality, The values closer to 1 indicate greater dissimilarity
+        # closer to -1 indicate greater similarity, 0 indicates orthogonality, The values closer to 1 indicate
+        # greater dissimilarity
         self.similarity = tf.keras.losses.CosineSimilarity(
             axis=-1, reduction=tf.keras.losses.Reduction.NONE
         )
@@ -109,7 +111,7 @@ class NT_Xent(tf.keras.layers.Layer):
         """zizj is [B,N] tensor with order z_i1 z_j1 z_i2 z_j2 z_i3 z_j3 ...
         batch_size is twice the original batch_size
         """
-        if not target_dataset_encoding is None:
+        if target_dataset_encoding is not None:
             if tf.executing_eagerly():
                 target_np = target_dataset_encoding.to_numpy()
             else:

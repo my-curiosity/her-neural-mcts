@@ -76,6 +76,7 @@ class ClassicMCTS:
         :param num_mcts_sims: The number of simulations to perform
         :param temperature: float Visit count exponentiation factor. A value of
         0 = Greedy, +infinity = uniformly random.
+        :param depth: Starting depth in game tree
         :return: tuple (pi, v) The move probabilities of MCTS and the estimated
         root-value of the policy.
         """
@@ -223,6 +224,7 @@ class ClassicMCTS:
         encoder/ dynamics model.
         :param path: tuple of integers representing the tree search-path of the
          current function call.
+        :param depth: Current depth in the game tree
         :return: float The backed-up discounted/ Monte-Carlo returns (dependent
          on gamma) of the tree search.
         :raises RecursionError: When cycles occur within the search path, the

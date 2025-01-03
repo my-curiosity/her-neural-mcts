@@ -11,7 +11,6 @@ Notes:
 """
 
 import os
-import typing
 from pickle import Pickler, Unpickler, HIGHEST_PROTOCOL
 from collections import deque
 from abc import ABC
@@ -30,7 +29,7 @@ import wandb
 
 from src.game.gym_game import (
     DiscreteActionWrapper,
-    NegativeRewardWrapper,
+    CustomRewardWrapper,
     reset_env_to_state,
     GymGameState,
 )
@@ -54,18 +53,15 @@ class Coach(ABC):
         run_name,
         checkpoint_train,
         checkpoint_manager,
-        checkpoint_test=None,
-    ) -> None:
+    ):
         """
-        Initialize the self-play class with an environment, an agent to train, requisite hyperparameters, a MCTS search
+        Initialize the self-play class with an environment, an agent to train, requisite hyperparameters, an MCTS search
         engine, and an agent-interface.
-        # :param rule_predictor_test:
-        # :param game_test:
-        :param run_name:
-        :param game: Game Implementation of Game class for environment logic.
-        :param rule_predictor: Some implementation of a neural network class to be trained.
-        :param args: Data structure containing parameters for self-play.
-        :param search_engine: Class containing the logic for performing MCTS using the neural_net.
+        :param run_name: Name for this run.
+        :param game: Game class containing environment logic.
+        :param rule_predictor: Neural network to be trained.
+        :param args: Parameters for self-play.
+        :param search_engine: Class containing the logic for performing MCTS using the rule_predictor.
         """
 
         self.metrics_test = None
@@ -76,7 +72,7 @@ class Coach(ABC):
         # Initialize replay buffer and helper variable
         self.trainExamplesHistory = deque(
             maxlen=self.args.selfplay_buffer_window
-            * self.args.num_selfplay_iterations
+            * self.args.num_selfplay_episodes
             * (1 + self.args.hindsight_samples)
         )
 
@@ -92,18 +88,14 @@ class Coach(ABC):
         self.file_writer.set_as_default()
         self.checkpoint = checkpoint_train
         self.checkpoint_manager = checkpoint_manager
-        self.checkpoint_test = checkpoint_test
         self.logger = get_log_obj(args=args, name="coach")
-        self.logger_test = get_log_obj(args=args, name="coach_test")
 
     @staticmethod
-    def getCheckpointFile(iteration: int) -> str:
+    def get_checkpoint_file(iteration):
         """Helper function to format model checkpoint filenames"""
         return f"checkpoint_{iteration}.pth.tar"
 
-    def sampleBatch(
-        self, histories: typing.List[GameHistory], batch_i: int
-    ) -> typing.List:
+    def sample_batch(self, histories, batch_i):
         """
           Sample a batch of data from the current replay buffer (with or without prioritization).
         Construct a batch of data-targets for gradient optimization of the AlphaZero neural network.
@@ -161,9 +153,9 @@ class Coach(ABC):
         ]
         return examples
 
-    def execute_one_game(self, game, mcts, mode) -> GameHistory:
+    def execute_one_game(self, game, mcts, mode):
         """
-        Perform one episode of self-play for gathering data to train neural networks on.
+        Performs one episode of self-play for gathering data to train neural networks on.
 
         The implementation details of the neural networks/ agents, temperature schedule, data storage
         is kept highly transparent on this side of the algorithm. Hence, for implementation details
@@ -176,7 +168,7 @@ class Coach(ABC):
         :return: GameHistory Data structure containing all observed states and statistics required for network training.
         """
         # Update MCTS visit count temperature according to an episode or weight update schedule.
-        temp = self.get_temperature(game)
+        temp = self.get_temperature()
 
         history = GameHistory()
         # Always from perspective of player 1 for boardgames.
@@ -193,12 +185,19 @@ class Coach(ABC):
             # Compute the move probability vector and state value using MCTS for the current state of the environment.
             pi, v = mcts.run_mcts(
                 state=state,
-                num_mcts_sims=self.args.num_MCTS_sims,
+                num_mcts_sims=self.args.num_mcts_sims,
                 temperature=temp,
                 depth=i,
             )
+
+            # log move probabilities for the first step
+            if i == 0:
+                self.logger.debug(f"")
+                self.logger.debug(f"State: {state.observation['obs']['observation']}")
+                self.logger.debug(f"Goal: {state.observation['obs']['desired_goal']}")
+                self.logger.debug(f"Probabilities: {pi}")
+
             # Take a step in the environment and observe the transition and store necessary statistics.
-            # TODO: greedy choice only in test?
             state.action = np.argmax(pi)  # np.random.choice(len(pi), p=pi)
 
             next_state, r = game.getNextState(
@@ -229,7 +228,8 @@ class Coach(ABC):
         history.compute_returns(gamma=self.args.gamma)
         return history
 
-    def get_temperature(self, game):
+    def get_temperature(self):
+        """Helper function to calculate current MCTS temperature"""
         try:
             temp = self.args.temp_0 * np.exp(
                 self.args.temperature_decay * np.float32(self.checkpoint.step.numpy())
@@ -238,7 +238,7 @@ class Coach(ABC):
             temp = self.args.temp_0
         return temp
 
-    def learn(self) -> None:
+    def learn(self):
         """
         Control the data gathering and weight optimization loop. Perform 'num_selfplay_iterations' iterations
         of self-play to gather data, each of 'num_episodes' episodes. After every self-play iteration, train the
@@ -247,8 +247,16 @@ class Coach(ABC):
         specified win/ lose ratio. Neural network weights and the replay buffer are stored after every iteration.
         Note that for highly granular vision based environments, that the replay buffer may grow to large sizes.
         """
-        self.logger.warning(
-            f"Starting with hindsight ({self.args.hindsight_samples} samples) ..."
+        self.logger.info(
+            f"Starting with hindsight: {self.args.hindsight_samples} goals / {self.args.hindsight_policy} policy / "
+            f"{self.args.hindsight_goal_selection} strategy / {self.args.hindsight_trajectory_selection} / "
+            f"{self.args.hindsight_num_trajectories} trajectories ..."
+        )
+        self.logger.info(
+            f"ARCHER lambda: {self.args.hindsight_aggressive_returns_lambda} / "
+            f"HCER: {self.args.hindsight_combined_experience_replay} / "
+            f"HER-ER: {self.args.hindsight_experience_ranking} /"
+            f"HER-ER threshold: {self.args.hindsight_experience_ranking_threshold} ..."
         )
 
         self.metrics_train = {
@@ -264,20 +272,20 @@ class Coach(ABC):
             "solved": tf.keras.metrics.Mean(dtype=tf.float32),
         }
         if self.args.load_pretrained:
-            self.loadTrainExamples(int(self.checkpoint.step))
-        while self.checkpoint.step < self.args.max_iteration_to_run:
-            self.logger.warning(
+            self.load_train_examples()
+        while self.checkpoint.step < self.args.num_iterations:
+            self.logger.info(
                 f"------------------ITER"
                 f" {int(self.checkpoint.step)}----------------"
             )
             # Self-play/ Gather training data.
-            self.gather_data(
+            self.execute_one_iteration(
                 metrics=self.metrics_train,
                 mcts=self.mcts,
                 game=self.game,
-                num_selfplay_iterations=self.args.num_selfplay_iterations,
+                num_selfplay_episodes=self.args.num_selfplay_episodes,
             )
-            self.saveTrainExamples(int(self.checkpoint.step))
+            self.save_train_examples(int(self.checkpoint.step))
 
             save_path = self.checkpoint_manager.save(check_interval=True)
             self.logger.debug(
@@ -285,16 +293,16 @@ class Coach(ABC):
             )
 
             test_now = (
-                self.args.test_generalization != "off"
-                and self.checkpoint.step % self.args.test_every_n_steps == 1
+                self.args.gym_test_generalization != "off"
+                and self.checkpoint.step % self.args.test_frequency == 1
             )
 
             if test_now:
-                self.gather_data(
+                self.execute_one_iteration(
                     metrics=self.metrics_test,
                     mcts=self.mcts,
                     game=self.game,
-                    num_selfplay_iterations=self.args.num_selfplay_iterations_test,
+                    num_selfplay_episodes=self.args.num_selfplay_episodes_test,
                 )
 
             for m in [self.metrics_train, self.metrics_test]:
@@ -314,7 +322,7 @@ class Coach(ABC):
         # Backpropagation
         pi_loss, v_loss = 0, 0
         for i in range(self.args.num_gradient_steps):
-            batch = self.sampleBatch(
+            batch = self.sample_batch(
                 histories=list(self.trainExamplesHistory), batch_i=i
             )
             pi_batch_loss, v_batch_loss, _ = self.rule_predictor.train(batch)
@@ -328,7 +336,17 @@ class Coach(ABC):
             }
         )
 
-    def gather_data(self, metrics, mcts, game, num_selfplay_iterations):
+    def execute_one_iteration(self, metrics, mcts, game, num_selfplay_episodes):
+        """
+        Performs one iteration consisting of multiple self-play episodes(games), adds collected training samples to ER,
+        updates performance metrics, optionally constructs HER samples and records episodes if possible.
+        The NN is trained after each episode executed in training mode.
+
+        :param metrics: Performance data to monitor learning statistics.
+        :param mcts: Class controlling MCTS.
+        :param game: Game instance used.
+        :param num_selfplay_episodes: Number of episodes in one iteration.
+        """
         metrics["reward"].reset_state()
         metrics["return"].reset_state()
         metrics["solved"].reset_state()
@@ -336,7 +354,7 @@ class Coach(ABC):
         video_paths = []
 
         for i in trange(
-            num_selfplay_iterations,
+            num_selfplay_episodes,
             desc=(
                 "Playing episodes" if metrics["mode"] == "train" else "Testing episodes"
             ),
@@ -358,7 +376,11 @@ class Coach(ABC):
             )
 
             # record episode video for better visualization
-            if self.args.record_video and self.args.game == "maze":
+            if (
+                self.args.point_maze_record_video
+                and self.args.game == "gym"
+                and self.args.gym_env_str.startswith("PointMaze")
+            ):
                 video_paths.append(
                     self.record_game_video(
                         video_dir, episode_history, i, metrics["mode"]
@@ -369,11 +391,14 @@ class Coach(ABC):
                 # add hindsight histories to ER
                 if self.args.hindsight_samples > 0:
                     hindsight = Hindsight(
+                        # utility options
                         seed=self.args.seed,
                         game=game,
                         mcts=mcts,
                         gamma=self.args.gamma,
                         episode_history=episode_history,
+                        reward_noise=self.args.gym_reward_noise,
+                        logging_level=self.args.logging_level,
                         # configuration
                         num_samples=self.args.hindsight_samples,
                         policy=self.args.hindsight_policy,
@@ -384,7 +409,6 @@ class Coach(ABC):
                         aggressive_returns_lambda=self.args.hindsight_aggressive_returns_lambda,
                         experience_ranking=self.args.hindsight_experience_ranking,
                         experience_ranking_threshold=self.args.hindsight_experience_ranking_threshold,
-                        args=self.args,
                     )
                     self.trainExamplesHistory.extend(
                         hindsight.create_hindsight_samples()
@@ -397,16 +421,26 @@ class Coach(ABC):
                     self.update_network()
 
         # save and upload a concatenation of all game videos from this iteration
-        if self.args.record_video and self.args.game == "maze":
+        if (
+            self.args.point_maze_record_video
+            and self.args.game == "gym"
+            and self.args.gym_env_str.startswith("PointMaze")
+        ):
             self.save_iteration_video(video_dir, video_paths, metrics["mode"])
 
     def episode_solved(self, episode_history):
+        """
+        Helper function to determine if an episode was solved
+        :param episode_history: Episode history
+
+        :return: True iff episode with specified history was solved
+        """
         if isinstance(self.game, FindEquationGame):
-            return abs(episode_history.rewards[-1] - self.args.maximum_reward) < 0.02
+            return abs(episode_history.rewards[-1] - self.args.maximum_reward) < 0.001
         else:  # gym
             return episode_history.rewards[-1] == self.args.maximum_reward
 
-    def saveTrainExamples(self, iteration: int) -> None:
+    def save_train_examples(self, iteration):
         """
         Store the current accumulated data to a compressed file using pickle. Note that for highly dimensional
         environments, that the stored files may be considerably large and that storing/ loading the data may
@@ -432,7 +466,7 @@ class Coach(ABC):
         if os.path.isfile(old_checkpoint):
             os.remove(old_checkpoint)
 
-    def loadTrainExamples(self, iteration: int) -> None:
+    def load_train_examples(self):
         """
         Load in a previously generated replay buffer from the path specified in the .json arguments.
         """
@@ -440,7 +474,7 @@ class Coach(ABC):
             if os.path.isfile(self.args.replay_buffer_path):
                 with open(self.args.replay_buffer_path, "rb") as f:
                     self.logger.info(
-                        f"Replay buffer {self.args.replay_buffer_path}  found. Read it."
+                        f"Replay buffer {self.args.replay_buffer_path} found. Read it."
                     )
                     self.trainExamplesHistory = Unpickler(f).load()
             else:
@@ -458,21 +492,26 @@ class Coach(ABC):
 
             if os.path.isfile(filename):
                 with open(filename, "rb") as f:
-                    self.logger.info(f"Replay buffer {buffer_number}  found. Read it.")
+                    self.logger.info(f"Replay buffer {buffer_number} found. Read it.")
                     self.trainExamplesHistory = Unpickler(f).load()
             else:
                 self.logger.info(f"No replay buffer found. Use empty one.")
 
     def record_game_video(self, video_dir, episode_history, idx, mode):
+        """
+        Records episode video and saves it in specified directory
+
+        :param video_dir: Directory used for recording
+        Also required for selecting filenames:
+        :param episode_history: Episode history, used for setting solved/unsolved labels
+        :param idx: Index of current episode in iteration
+        :param mode: Testing or training
+        """
         video_prefix = (
-            ("solved" if self.episode_solved(episode_history) else "unsolved")
-            + "_iter"
-            + str(int(self.checkpoint.step))
-            + ("_test" if mode == "test" else "_train")
-            + "_game"
-            + str(idx)
+            f"{'solved' if self.episode_solved(episode_history) else 'unsolved'}"
+            f"_iter{int(self.checkpoint.step)}_{mode}_game{idx}"
         )
-        video_env = NegativeRewardWrapper(
+        video_env = CustomRewardWrapper(
             DiscreteActionWrapper(
                 RecordVideo(
                     env=gym.make(
@@ -480,14 +519,16 @@ class Coach(ABC):
                         reward_type="sparse",
                         continuing_task=False,
                         reset_target=False,
-                        max_episode_steps=self.args.max_episode_steps,
+                        max_episode_steps=self.args.gym_max_episode_steps,
                         render_mode="rgb_array",
                     ),
                     video_folder=video_dir,
                     name_prefix=video_prefix,
                     episode_trigger=lambda x: True,
                 )
-            )
+            ),
+            minimum_reward=self.args.minimum_reward,
+            maximum_reward=self.args.maximum_reward,
         )
         # reset env to starting state and execute chosen actions
         reset_env_to_state(
@@ -503,16 +544,17 @@ class Coach(ABC):
                 break
         video_env.close()
         # return video path
-        return video_dir + video_prefix + "-episode-0.mp4"
+        return f"{video_dir}{video_prefix}-episode-0.mp4"
 
     def save_iteration_video(self, video_dir, video_paths, mode):
+        """
+        Combines episode videos recorded during this iteration into one file and logs it to wandb
+
+        :param video_dir: Directory used for recording
+        :param video_paths: Paths to recorded files
+        :param mode: Testing or training. Used to choose filename
+        """
         iter_video = concatenate_videoclips([VideoFileClip(p) for p in video_paths])
-        iter_video_path = (
-            video_dir
-            + "iter"
-            + str(int(self.checkpoint.step))
-            + ("_test" if mode == "test" else "_train")
-            + ".mp4"
-        )
+        iter_video_path = f"{video_dir}iter{int(self.checkpoint.step)}_{mode}.mp4"
         iter_video.write_videofile(iter_video_path)
         wandb.log({"video": wandb.Video(iter_video_path, format="mp4")})

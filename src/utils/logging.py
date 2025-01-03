@@ -24,13 +24,15 @@ class CustomFormatter(logging.Formatter):
         return formatter.format(record)
 
 
-def get_log_obj(args, name="AlphaZeroEquation"):
+def get_log_obj(args, name="AlphaZeroEquation", level=None):
+    logging_level = level if level is not None else args.logging_level
+
     logger = logging.getLogger(name)
-    logger.setLevel(args.logging_level)
+    logger.setLevel(logging_level)
 
     # create console handler with a higher log level
     ch = logging.StreamHandler()
-    ch.setLevel(args.logging_level)
+    ch.setLevel(logging_level)
 
     ch.setFormatter(CustomFormatter())
 

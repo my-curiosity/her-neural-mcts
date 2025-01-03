@@ -6,7 +6,8 @@ import numpy as np
 from pcfg import PCFG
 from src.utils.get_grammar import add_prior
 from src.game.game import Game, GameState
-from src.equation_classes.max_list import MaxList
+from src.game.bit_flip_env import BitFlipEnv  # for gym.make
+from src.equation_modules.equation_classes.max_list import MaxList
 
 
 class GymGameState(GameState):
@@ -25,6 +26,10 @@ class GymGameState(GameState):
 
 
 class GymGame(Game):
+    """
+    This GymGame implementation includes logic for testing generalization of learned behaviour.
+    If configured, only rarely used or unseen goals will be chosen during environment resets in test mode.
+    """
 
     def __init__(self, args, env):
         super().__init__()
@@ -32,17 +37,21 @@ class GymGame(Game):
         self.env = env
         self.max_list = MaxList(self.args)
 
+        # container for saving goal frequency stats
         self.goals = {}
+
+        # container for saving goals blocked during training
         if self.env.spec.id.startswith("PointMaze"):
             cells = [
                 self.env.unwrapped.maze.cell_xy_to_rowcol(c).tolist()
                 for c in self.env.unwrapped.maze.unique_goal_locations
             ]
-            # 1/4 cells are blocked
+            # 1/4 possible cells are blocked
             self.blocked_goals = random.sample(cells, int(len(cells) / 4))
-        else:  # bitflip
+        else:  # BitFlip
+            # 10000 random sequences are blocked
             self.blocked_goals = [
-                [random.getrandbits(1) for _ in range(self.args.bitflip_num_bits)]
+                [random.getrandbits(1) for _ in range(self.args.gym_max_episode_steps)]
                 for _ in range(10000)
             ]
 
@@ -57,10 +66,10 @@ class GymGame(Game):
 
     def getInitialState(self, mode="train") -> GymGameState:
         if mode == "test":
-            if self.args.test_generalization == "unseen":
+            if self.args.gym_test_generalization == "unseen":
                 # force unseen goals only
                 goal = random.choice(self.blocked_goals)
-            elif self.args.test_generalization == "rare":
+            elif self.args.gym_test_generalization == "rare":
                 # force least frequent goals
                 goal = np.array(sorted(self.goals.items(), key=lambda g: g[1])[0][0])
                 self.goals[tuple(goal)] += 1  # update stats
@@ -69,19 +78,20 @@ class GymGame(Game):
             # reset env with chosen goal
             if self.env.spec.id.startswith("PointMaze"):
                 obs, _ = self.env.reset(options={"goal_cell": goal})
-            else:  # bitflip
+            else:  # BitFlip
                 obs, _ = self.env.reset(options={"goal": goal})
 
         else:  # train
             goal = None
             while goal is None or (
-                self.args.test_generalization == "unseen" and goal in self.blocked_goals
+                self.args.gym_test_generalization == "unseen"
+                and goal in self.blocked_goals
             ):
                 obs, _ = self.env.reset()
                 goal = (
                     self.env.unwrapped.maze.cell_xy_to_rowcol(self.env.unwrapped.goal)
                     if self.env.spec.id.startswith("PointMaze")
-                    else obs["goal"]
+                    else obs["desired_goal"]
                 ).tolist()
             # update stats
             self.goals[tuple(goal)] = self.goals.get(tuple(goal), 0) + 1
@@ -104,7 +114,7 @@ class GymGame(Game):
 
         if reward != self.args.maximum_reward:
             # add random noise to reward if needed
-            reward += (random.random() - 0.5) * self.args.reward_noise
+            reward += (random.random() - 0.5) * self.args.gym_reward_noise
 
         next_state = GymGameState(
             None,
@@ -136,10 +146,10 @@ class GymGame(Game):
         return str(state)
 
 
-def make_env(env_str: str, max_episode_steps):
+def make_env(env_str: str, max_episode_steps, minimum_reward, maximum_reward):
     if env_str.startswith("PointMaze"):
         gym.register_envs(gymnasium_robotics)
-        return NegativeRewardWrapper(
+        return CustomRewardWrapper(
             DiscreteActionWrapper(
                 gym.make(
                     env_str,
@@ -148,7 +158,17 @@ def make_env(env_str: str, max_episode_steps):
                     reset_target=False,
                     max_episode_steps=max_episode_steps,
                 )
-            )
+            ),
+            minimum_reward=minimum_reward,
+            maximum_reward=maximum_reward,
+        )
+    elif env_str.startswith("BitFlip"):
+        return gym.make(
+            env_str,
+            max_episode_steps=max_episode_steps,
+            num_bits=max_episode_steps,
+            minimum_reward=minimum_reward,
+            maximum_reward=maximum_reward,
         )
     elif env_str in list(gym.envs.registry.keys()):
         return gym.make(env_str)
@@ -157,6 +177,12 @@ def make_env(env_str: str, max_episode_steps):
 
 
 class DiscreteActionWrapper(gym.ActionWrapper):
+    """
+    Needed to discretize a continuous PointMaze action space
+    (Box [-1,1]) for MCTS compatibility. Each discrete action is interpreted
+    as one of the 8 [x,y] points with distance 1 to coordinate center.
+    """
+
     def __init__(self, env):
         super(DiscreteActionWrapper, self).__init__(env)
         self.action_space = gym.spaces.Discrete(8)
@@ -176,26 +202,39 @@ class DiscreteActionWrapper(gym.ActionWrapper):
         return np.array(box_actions[action])
 
 
-class NegativeRewardWrapper(gym.RewardWrapper):
+class CustomRewardWrapper(gym.RewardWrapper):
+    """
+    Transforms 0/1 rewards to minimum_reward/maximum_reward from args.
+    """
+
+    def __init__(self, env, minimum_reward, maximum_reward):
+        super().__init__(env)
+        self.minimum_reward = minimum_reward
+        self.maximum_reward = maximum_reward
+
     def reward(self, reward):
-        return 0 if reward == 1 else -1
+        return self.maximum_reward if reward == 1 else self.minimum_reward
 
 
 def reset_env_to_state(env, state, steps_done):
+    """
+    Resets the game environment to specified state. Must be implemented separately for
+    each environment, but is useful to avoid deepcopy() and save memory.
+    """
     env.reset()
 
-    if env.spec.id.startswith("bitflip"):
+    if env.spec.id.startswith("BitFlip"):
         env._elapsed_steps = steps_done
-        env.unwrapped.state = np.copy(state.observation["obs"]["state"])
-        env.unwrapped.goal = np.copy(state.observation["obs"]["goal"])
+        env.unwrapped.state = np.copy(state.observation["obs"]["observation"])
+        env.unwrapped.goal = np.copy(state.observation["obs"]["desired_goal"])
 
     elif env.spec.id.startswith("PointMaze"):
         # we have 2 wrappers, 3rd one is TimeLimit
-        env.env.env._elapsed_steps = steps_done  # TODO: rewrite this?
+        env.env.env._elapsed_steps = steps_done
         env.unwrapped.data.qpos = np.copy(state.observation["obs"]["observation"][:2])
         env.unwrapped.data.qvel = np.copy(state.observation["obs"]["observation"][2:])
         env.unwrapped.goal = np.copy(state.observation["obs"]["desired_goal"])
-        env.unwrapped.update_target_site_pos()
+        env.unwrapped.update_target_site_pos()  # for visualization
 
     else:
         raise NotImplementedError()

@@ -2,7 +2,8 @@ import numpy as np
 
 
 def ReMSe(y_pred, y_true):
-    # relative root mean square error as in [Brence, Todorovski, and Džeroski, “Probabilistic Grammars for Equation Discovery.”]
+    # relative root-mean-square error as in [Brence, Todorovski, and Džeroski, “Probabilistic Grammars for Equation
+    # Discovery.”]
     mean_y_true = np.mean(y_true)
     mean_square_error = Mse(y_pred, y_true)
     variance = np.mean(np.power(y_true - mean_y_true, 2))

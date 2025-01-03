@@ -8,7 +8,7 @@ import typing
 
 import numpy as np
 from src.game.game import GameState
-from src.syntax_tree.syntax_tree import SyntaxTree
+from src.equation_modules.syntax_tree.syntax_tree import SyntaxTree
 
 
 @dataclass

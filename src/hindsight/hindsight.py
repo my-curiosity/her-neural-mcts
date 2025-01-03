@@ -3,7 +3,10 @@ import numpy as np
 from src.game.find_equation_game import FindEquationGame
 from src.game.game_history import GameHistory
 import copy
-from src.generate_datasets.dataset_generator import constant_dict_to_string
+from src.equation_modules.generate_datasets.dataset_generator import (
+    constant_dict_to_string,
+)
+from src.game.gym_game import GymGame
 from src.utils.logging import get_log_obj
 
 
@@ -29,8 +32,8 @@ class Hindsight:
         https://ieeexplore.ieee.org/abstract/document/8850705/
     :param experience_ranking_threshold: Maximum distance between virtual and real goals allowed
 
-    Additional parameters for equation discovery:
-    :param args: Other arguments required for constructing syntax trees
+    :param reward_noise: Amount of noise added to rewards to test learning stability
+    :param logging_level: Importance of messages required for logging
     """
 
     def __init__(
@@ -48,7 +51,8 @@ class Hindsight:
         aggressive_returns_lambda=1,
         experience_ranking=False,
         experience_ranking_threshold=1,
-        args=None,
+        reward_noise=0,
+        logging_level=30,
     ):
         self.game = game
         self.episode_history = episode_history
@@ -65,8 +69,9 @@ class Hindsight:
         self.experience_ranking = experience_ranking
         self.experience_ranking_threshold = experience_ranking_threshold
 
-        self.args = args
-        self.logger = get_log_obj(args=args, name="Hindsight")
+        self.reward_noise = reward_noise
+
+        self.logger = get_log_obj(args=None, name="Hindsight", level=logging_level)
 
         self.random = random.Random(x=seed)
         self.np_random = np.random.default_rng(seed=seed)
@@ -229,6 +234,7 @@ class Hindsight:
         :param episode_observations: List of observations
         :param goal_index: Goal observation index
         :param goal_observation: Goal observation
+
         :return: Total hindsight return from current state.
         """
         hindsight_rewards = []
@@ -254,7 +260,7 @@ class Hindsight:
                     # add random noise to reward if needed
                     hindsight_rewards[-1] += (
                         self.random.random() - 0.5
-                    ) * self.args.reward_noise
+                    ) * self.reward_noise
         # calculate total return for state (and multiply by lambda if aggressive rewards are used)
         return (
             sum(
@@ -302,18 +308,13 @@ class Hindsight:
                     return relabeled_observation
                 else:
                     self.logger.warning("infinite value in y calculation")
-                    return None  # TODO: infinite y?
+                    return None
             except Exception as e:
                 self.logger.warning(
                     "y calculation failed: " + getattr(e, "message", repr(e))
                 )
                 return None  # invalid value in y calculation
-        elif self.game.env.spec.id.startswith("bitflip"):
-            relabeled_observation["obs"]["goal"] = hindsight_goal_observation["obs"][
-                "state"
-            ]
-            return relabeled_observation
-        elif self.game.env.spec.id.startswith("PointMaze"):
+        elif isinstance(self.game, GymGame):
             relabeled_observation["obs"]["desired_goal"] = hindsight_goal_observation[
                 "obs"
             ]["achieved_goal"]
@@ -329,22 +330,18 @@ class Hindsight:
         :param goal_observation: Goal observation
         :return: Game reward for current observation with specified goal.
         """
-        if self.game.env.spec.id.startswith("bitflip"):
-            return self.game.env.unwrapped.reward(
-                state=observation["obs"]["state"],
-                goal=goal_observation["obs"]["state"],
+        if isinstance(self.game, GymGame):
+            reward = self.game.env.unwrapped.compute_reward(
+                observation["obs"]["achieved_goal"],
+                goal_observation["obs"]["achieved_goal"],
+                {},
             )
-        elif self.game.env.spec.id.startswith("PointMaze"):
-            # NegativeRewardWrapper is not applied here,
-            # so we need -1 for binary negative rewards
-            return (
-                self.game.env.unwrapped.compute_reward(
-                    observation["obs"]["achieved_goal"],
-                    goal_observation["obs"]["achieved_goal"],
-                    {},
-                )
-                - 1
-            )
+            if self.game.env.spec.id.startswith("PointMaze"):
+                # NegativeRewardWrapper is not applied here,
+                # so we need -1 for binary negative rewards
+                return reward - 1
+            else:
+                return reward
         else:
             raise NotImplementedError()
 
@@ -356,12 +353,7 @@ class Hindsight:
         :param virtual_goal_observation: Virtual goal observation
         :return: Distance between virtual and real goals.
         """
-        if self.game.env.spec.id.startswith("bitflip"):
-            return np.linalg.norm(
-                virtual_goal_observation["obs"]["state"]
-                - virtual_goal_observation["obs"]["goal"]
-            )
-        elif self.game.env.spec.id.startswith("PointMaze"):
+        if isinstance(self.game, GymGame):
             return np.linalg.norm(
                 virtual_goal_observation["obs"]["achieved_goal"]
                 - virtual_goal_observation["obs"]["desired_goal"]

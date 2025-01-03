@@ -45,7 +45,7 @@ def assign_to_path(chkpoint_obj, path: str, value):
         return True
     elif next_path == ".OPTIMIZER_SLOT":
         raise NotImplementedError(
-            "assign_to_path::error::assignemnt of content of optimizer slots is not yet implemented."
+            "assign_to_path::error::assignment of content of optimizer slots is not yet implemented."
         )
     elif next_path[0] in "0123456789":
         # path starting with a number is a list entry

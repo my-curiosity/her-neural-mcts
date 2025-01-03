@@ -15,9 +15,8 @@ def tf_save_cast_to_float_32(x, logger, name):
     Casting Floats from the 64 to 32 bit is a surprisingly, annoying and hard to prevent
     source for errors.
     This method tries to catch all exception and handel them in a way the
-    script can proceed and the weights of the network stay well defined after
+    script can proceed and the weights of the network stay well-defined after
     updating them.
-    :param array:
     :return:
     """
     try:

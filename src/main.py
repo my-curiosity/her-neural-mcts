@@ -7,15 +7,14 @@ https://github.com/kaesve/muzero
 
 import warnings
 import random
-import gymnasium as gym
 from datetime import datetime
 from src.config import Config
 from src.coach import Coach
-from src.game.bitflip_env import BitFlipEnv  # required for gym.make
-from src.neural_nets.equation_rule_predictor_skeleton import (
+from src.neural_nets.equation.equation_rule_predictor_skeleton import (
     EquationRulePredictorSkeleton,
 )
-from src.neural_nets.bitflip_rule_predictor_skeleton import BitFlipRulePredictorSkeleton
+from src.neural_nets.bit_flip.bit_flip_predictor import BitFlipPredictor
+from src.neural_nets.point_maze.point_maze_predictor import PointMazePredictor
 from src.game.find_equation_game import FindEquationGame
 from src.game.gym_game import GymGame, make_env
 from src.mcts.classic_mcts import ClassicMCTS
@@ -25,10 +24,9 @@ import numpy as np
 import wandb
 from definitions import ROOT_DIR
 
-from src.neural_nets.maze_rule_perdictor_skeleton import MazeRulePredictorSkeleton
 from src.utils.copy_weights import copy_dataset_encoder_weights_from_pretrained_agent
 from src.utils.get_grammar import get_grammar_from_string
-from src.generate_datasets.grammars import get_grammars
+from src.equation_modules.generate_datasets.grammars import get_grammars
 
 warnings.filterwarnings("ignore")
 
@@ -41,7 +39,6 @@ def run():
     wandb_path = ROOT_DIR / ".wandb" / args.experiment_name / f"{unique_dir}"
     wandb_path.mkdir(parents=True, exist_ok=True)
     wandb.init(
-        entity="my_cur10s1ty-tu-darmstadt",
         config=args.__dict__,
         project=args.project_name,
         sync_tensorboard=True,
@@ -60,43 +57,27 @@ def run():
         string=get_grammars(args.grammar_search), args=args
     )
 
-    if args.game == "equation_discovery":
+    if args.game == "gym":
+        game = GymGame(
+            args,
+            make_env(
+                env_str=args.gym_env_str,
+                max_episode_steps=args.gym_max_episode_steps,
+                minimum_reward=args.minimum_reward,
+                maximum_reward=args.maximum_reward,
+            ),
+        )
+    else:  # equation
         game = FindEquationGame(grammar, args, train_test_or_val="train")
-        game_test = FindEquationGame(grammar, args, train_test_or_val="test")
-    elif args.game == "bitflip":
-        game = GymGame(
-            args,
-            gym.make(id=args.game, max_episode_steps=args.max_episode_steps, args=args),
-        )
-        game_test = GymGame(
-            args,
-            gym.make(id=args.game, max_episode_steps=args.max_episode_steps, args=args),
-        )
-    elif args.game == "maze":
-        game = GymGame(
-            args,
-            make_env(
-                env_str="PointMaze_Medium-v3", max_episode_steps=args.max_episode_steps
-            ),
-        )
-        game_test = GymGame(
-            args,
-            make_env(
-                env_str="PointMaze_Medium-v3", max_episode_steps=args.max_episode_steps
-            ),
-        )
-    else:
-        game, game_test = None, None
 
-    learn_a0(game=game, args=args, run_name=args.experiment_name, game_test=game_test)
+    learn_a0(game=game, args=args, run_name=args.experiment_name)
     wandb.log({f"successful": True})
 
 
-def learn_a0(game, args, run_name: str, game_test) -> None:
+def learn_a0(game, args, run_name):
     """
     Train an AlphaZero agent on the given environment with the specified configuration. If specified within the
     configuration file, the function will load in a previous model along with previously generated data.
-    :param game_test:
     :param args:
     :param game: Game Instance of a Game class that implements environment logic. Train agent on this environment.
     :param run_name: str Run name to store data by and annotate results.
@@ -104,47 +85,37 @@ def learn_a0(game, args, run_name: str, game_test) -> None:
     print("Testing:", ", ".join(run_name.split("_")))
 
     # Extract neural network and algorithm arguments separately
-    if args.game == "equation_discovery":
+    if args.game == "gym":
+        if args.gym_env_str.startswith("BitFlip"):
+            rule_predictor_train = BitFlipPredictor(game=game, args=args)
+        elif args.gym_env_str.startswith("PointMaze"):
+            rule_predictor_train = PointMazePredictor(game=game, args=args)
+        else:
+            raise NotImplementedError
+    else:  # equation
         rule_predictor_train = EquationRulePredictorSkeleton(
             args=args, reader_train=game.reader
         )
-        rule_predictor_test = EquationRulePredictorSkeleton(
-            args=args, reader_train=game_test.reader
-        )
-    elif args.game == "bitflip":
-        rule_predictor_train = BitFlipRulePredictorSkeleton(game=game, args=args)
-        rule_predictor_test = BitFlipRulePredictorSkeleton(game=game, args=args)
-    elif args.game == "maze":
-        rule_predictor_train = MazeRulePredictorSkeleton(game=game, args=args)
-        rule_predictor_test = MazeRulePredictorSkeleton(game=game, args=args)
-    else:
-        rule_predictor_train = None
-        rule_predictor_test = None
 
     checkpoint_train, manager_train = load_pretrained_net(
         args=args, rule_predictor=rule_predictor_train, game=game
     )
-    checkpoint_test, _ = load_pretrained_net(
-        args=args, rule_predictor=rule_predictor_test, game=game
-    )
-    if args.MCTS_engine == "Endgame":
+
+    if args.mcts_engine == "Endgame":
         search_engine = AmEx_MCTS
-    elif args.MCTS_engine == "Normal":
+    elif args.mcts_engine == "Normal":
         search_engine = ClassicMCTS
     else:
-        raise AssertionError(f"Engine: {args.MCTS_engine} not defined!")
+        raise AssertionError(f"Engine: {args.mcts_engine} not defined!")
 
     c = Coach(
         game=game,
-        # game_test=game_test,
         rule_predictor=rule_predictor_train,
-        # rule_predictor_test=rule_predictor_test,
         args=args,
         search_engine=search_engine,
         run_name=run_name,
         checkpoint_train=checkpoint_train,
         checkpoint_manager=manager_train,
-        checkpoint_test=checkpoint_test,
     )
 
     c.learn()
@@ -152,11 +123,7 @@ def learn_a0(game, args, run_name: str, game_test) -> None:
 
 def load_pretrained_net(args, rule_predictor, game):
     experiment_name = f"{args.experiment_name}/{args.seed}"
-    net = (
-        rule_predictor.net
-        if args.game == "equation_discovery"
-        else rule_predictor.net.model
-    )
+    net = rule_predictor.net if args.game == "equation" else rule_predictor.net.model
     checkpoint_path_current_model = (
         ROOT_DIR / "saved_models" / args.data_path / experiment_name
     )

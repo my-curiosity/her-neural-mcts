@@ -1,10 +1,10 @@
 def create_file_path(save_folder, stem):
-    id = uniqu_id(save_folder, stem)
+    id = unique_id(save_folder, stem)
     file_path = save_folder / f"{stem}_{id}"
     return file_path
 
 
-def uniqu_id(path, stem):
+def unique_id(path, stem):
     p = path.glob("*")
     folders = [x for x in p if x.is_dir()]
     max_number = 0
