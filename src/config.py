@@ -814,6 +814,18 @@ class Config:
             default=False,
             help="Set to true to use the saved models.",
         )
+        parser.add_argument(
+            "--save_model",
+            type=str2bool,
+            default=False,
+            help="Set to true to save the learned model during training.",
+        )
+        parser.add_argument(
+            "--save_er",
+            type=str2bool,
+            default=False,
+            help="Set to true to save ER examples during training.",
+        )
 
         args = parser.parse_args()
         if args.seed is None:

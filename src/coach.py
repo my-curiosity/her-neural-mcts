@@ -190,8 +190,8 @@ class Coach(ABC):
                 depth=i,
             )
 
-            # log move probabilities for the first step
-            if i == 0:
+            # log move probabilities for the third step (as an example)
+            if i == 2:
                 self.logger.debug(f"")
                 self.logger.debug(f"State: {state.observation['obs']['observation']}")
                 self.logger.debug(f"Goal: {state.observation['obs']['desired_goal']}")
@@ -271,8 +271,10 @@ class Coach(ABC):
             "return": tf.keras.metrics.Mean(dtype=tf.float32),
             "solved": tf.keras.metrics.Mean(dtype=tf.float32),
         }
+
         if self.args.load_pretrained:
             self.load_train_examples()
+
         while self.checkpoint.step < self.args.num_iterations:
             self.logger.info(
                 f"------------------ITER"
@@ -285,18 +287,19 @@ class Coach(ABC):
                 game=self.game,
                 num_selfplay_episodes=self.args.num_selfplay_episodes,
             )
-            self.save_train_examples(int(self.checkpoint.step))
 
-            save_path = self.checkpoint_manager.save(check_interval=True)
-            self.logger.debug(
-                f"Saved checkpoint for epoch {int(self.checkpoint.step)}: {save_path}"
-            )
+            if self.args.save_er:
+                self.save_train_examples(int(self.checkpoint.step))
+            if self.args.save_model:
+                save_path = self.checkpoint_manager.save(check_interval=True)
+                self.logger.debug(
+                    f"Saved checkpoint for epoch {int(self.checkpoint.step)}: {save_path}"
+                )
 
             test_now = (
                 self.args.gym_test_generalization != "off"
                 and self.checkpoint.step % self.args.test_frequency == 1
             )
-
             if test_now:
                 self.execute_one_iteration(
                     metrics=self.metrics_test,
