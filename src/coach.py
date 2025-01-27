@@ -191,7 +191,7 @@ class Coach(ABC):
             )
 
             # log move probabilities for the third step (as an example)
-            if i == 2:
+            if not isinstance(game, FindEquationGame) and i == 2:
                 self.logger.debug(f"")
                 self.logger.debug(f"State: {state.observation['obs']['observation']}")
                 self.logger.debug(f"Goal: {state.observation['obs']['desired_goal']}")
@@ -214,6 +214,9 @@ class Coach(ABC):
             state.syntax_tree if isinstance(game, FindEquationGame) else None
         )
 
+        if isinstance(game, FindEquationGame):
+            self.log_mcts_results(game, history, mcts, mode, state)
+
         game.close(state)
         history.terminate(
             formula_started_from=(
@@ -227,6 +230,37 @@ class Coach(ABC):
         )
         history.compute_returns(gamma=self.args.gamma)
         return history
+
+    def log_mcts_results(self, game, history, mcts, mode, next_state):
+        # Cleanup environment and GameHistory
+        self.logger.info(f"Initial guess of NN: ")
+        initial_hash = list(mcts.Ps.keys())[0]
+        for i in np.where(mcts.valid_moves_for_s[initial_hash])[0]:
+            if (initial_hash, i) in mcts.Qsa:
+                self.logger.info(
+                    f"     {str(game.grammar._productions[i]._rhs) :<120}|"
+                    f" Ps: {round(mcts.Ps[initial_hash][i], 2):<10.2f}|"
+                    # f"init. Qsa: {round(mcts.initial_Qsa[(initial_hash, i)], 2) if (initial_hash, i) in mcts.initial_Qsa else 0:<10}"
+                    f" mcts: {round(history.probabilities[0][i], 2):<10}|"
+                    f" Qsa: {round(mcts.Qsa[(initial_hash, i)], 2):<10}|"
+                    f" #Ssa: {mcts.times_edge_s_a_was_visited[(initial_hash, i)]:<10}"
+                )
+            # self.logger.info(f"{' '*10}equation add to buffer: r={state.reward:.2} {complete_state.syntax_tree.__str__()}")
+        if mcts.states_explored_till_perfect_fit > 0:
+            wandb.log(
+                {
+                    f"num_states_to_perfect_fit_{mode}": mcts.states_explored_till_perfect_fit,
+                    f"{next_state.observation['true_equation_hash']}"
+                    f"_num_states_to_perfect_fit_{mode}": mcts.states_explored_till_perfect_fit,
+                }
+            )
+        else:
+            wandb.log(
+                {
+                    f"equation_not_found_{next_state.observation['true_equation_hash']}_{mode}": 1,
+                    f"equation_not_found_{mode}": 1,
+                }
+            )
 
     def get_temperature(self):
         """Helper function to calculate current MCTS temperature"""

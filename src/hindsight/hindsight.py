@@ -307,10 +307,10 @@ class Hindsight:
                     )
                     return relabeled_observation
                 else:
-                    self.logger.warning("infinite value in y calculation")
+                    self.logger.debug("infinite value in y calculation")
                     return None
             except Exception as e:
-                self.logger.warning(
+                self.logger.debug(
                     "y calculation failed: " + getattr(e, "message", repr(e))
                 )
                 return None  # invalid value in y calculation

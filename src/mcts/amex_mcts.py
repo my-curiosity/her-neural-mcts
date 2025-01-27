@@ -24,19 +24,19 @@ class AmEx_MCTS(ClassicMCTS):
     logic.
     """
 
-    def __init__(self, game, args, **kwargs) -> None:
+    def __init__(self, game, args, rule_predictor=None) -> None:
         """
         Initialize all requisite variables for performing MCTS for AlphaZero.
 
         :param game: Game Implementation of Game class for environment logic.
         :param args: Data structure containing parameters for the tree search.
         """
-        super().__init__(game=game, args=args, **kwargs)
+        super().__init__(game=game, args=args, rule_predictor=rule_predictor)
         self.not_completely_explored_moves_for_s = {}
         self.states = {}
 
     def run_mcts(
-        self, state: GameState, num_mcts_sims, temperature: float
+        self, state: GameState, num_mcts_sims, temperature: float, depth: int = 0
     ) -> typing.Tuple[np.ndarray, float]:
         """
         This function performs 'num_MCTS_sims' simulations of MCTS starting
@@ -58,6 +58,7 @@ class AmEx_MCTS(ClassicMCTS):
         :param num_mcts_sims: The number of simulations to perform
         :param temperature: float Visit count exponentiation factor. A value of
         0 = Greedy, +infinity = uniformly random.
+        :param depth: Starting depth in game tree.
         :return: tuple (pi, v) The move probabilities of MCTS and the estimated
         root-value of the policy.
         """
@@ -74,7 +75,9 @@ class AmEx_MCTS(ClassicMCTS):
         )
         for num_sim in range(num_mcts_sims):
             if not_completely_explored:
-                mct_return, not_completely_explored = self._search(state=state)
+                mct_return, not_completely_explored = self._search(
+                    state=state, depth=depth
+                )
                 mct_return_list.append(mct_return)
             else:
                 break
@@ -165,6 +168,7 @@ class AmEx_MCTS(ClassicMCTS):
         self,
         state: GameState,
         path: typing.Tuple[int, ...] = tuple(),
+        depth: int = 0,
     ) -> (float, bool):
         """
         Recursively perform MCTS search inside the actual environments with
@@ -192,6 +196,7 @@ class AmEx_MCTS(ClassicMCTS):
         encoder/ dynamics model.
         :param path: tuple of integers representing the tree search-path of the
          current function call.
+        :param depth: Current depth in the game tree.
         :return: float The backed-up discounted/ Monte-Carlo returns (dependent
          on gamma) of the tree search.
         :raises RecursionError: When cycles occur within the search path, the
@@ -203,13 +208,19 @@ class AmEx_MCTS(ClassicMCTS):
         # EXPAND and SIMULATE
         if (state_hash, a) not in self.Ssa:
             value = self.rollout_for_valid_moves(
-                a=a, state_hash=state_hash, state=state, path=path
+                a=a,
+                state_hash=state_hash,
+                state=state,
+                path=path,
+                depth=depth,
             )
             pass
 
         elif not self.Ssa[(state_hash, a)].done:
             # walk known part of the net
-            value, _ = self._search(state=self.Ssa[(state_hash, a)], path=path + (a,))
+            value, _ = self._search(
+                state=self.Ssa[(state_hash, a)], path=path + (a,), depth=depth + 1
+            )
 
         else:  # is in Ssa and done
             raise RuntimeError(
@@ -245,10 +256,12 @@ class AmEx_MCTS(ClassicMCTS):
             ] &= not_subtree_completed
         return mct_return, not_subtree_completed
 
-    def rollout_for_valid_moves(self, a, state_hash, state, path):
+    def rollout_for_valid_moves(self, a, state_hash, state, path, depth):
         # explore new part of the tree
         value = 0
-        next_state, reward = self.game.getNextState(state=state, action=a)
+        next_state, reward = self.game.getNextState(
+            state=state, action=a
+        )  # and steps_done=depth for GymGame
         next_state_hash = self.game.getHash(state=next_state)
         if next_state_hash in self.states:
             # We are visiting a state we already explored before
