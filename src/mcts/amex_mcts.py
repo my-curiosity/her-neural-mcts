@@ -322,7 +322,7 @@ class AmEx_MCTS(ClassicMCTS):
             ] * self.action_size
             self.not_completely_explored_moves_for_s[state_hash][a] = False
             self.times_s_was_visited[next_state_hash] += 1  # debug value
-            if self.states_explored_till_perfect_fit < 0 and reward > 0.999:
+            if self.states_explored_till_perfect_fit == 0 and reward > 0.999:
                 self.states_explored_till_perfect_fit = len(self.times_s_was_visited)
         return value
 

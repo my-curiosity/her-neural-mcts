@@ -53,7 +53,7 @@ class ClassicMCTS:
         self.logger = get_log_obj(args=args)
 
         self.temperature = None  # exponentiation factor
-        self.states_explored_till_perfect_fit = -1
+        self.states_explored_till_perfect_fit = 0
 
     def run_mcts(
         self, state: GameState, num_mcts_sims, temperature: float, depth: int = 0
@@ -157,7 +157,7 @@ class ClassicMCTS:
         self.valid_moves_for_s = {}  # stores game.getValidMoves for board s
         self.visits_done_state = 0
         self.visits_roll_out = 0
-        self.states_explored_till_perfect_fit = -1
+        self.states_explored_till_perfect_fit = 0
 
     def initialize_root(self, state: GameState) -> typing.Tuple[bytes, float]:
         """
@@ -304,7 +304,7 @@ class ClassicMCTS:
                 value = (value_search + value) / 2
         else:
             # next state is done
-            if self.states_explored_till_perfect_fit < 0 and reward > 0.999:
+            if self.states_explored_till_perfect_fit == 0 and reward > 0.999:
                 self.states_explored_till_perfect_fit = len(self.times_s_was_visited)
         return value
 

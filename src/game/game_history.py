@@ -36,7 +36,7 @@ class GameHistory:
     )  # z_t: Training targets for the value function
     terminated: bool = False  # Whether the environment has terminated
     syntax_tree: SyntaxTree = None
-    states_to_perfect: int = -1
+    states_to_perfect: int = 0
 
     def __len__(self) -> int:
         """Get length of current stored trajectory"""

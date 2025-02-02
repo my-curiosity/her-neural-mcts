@@ -245,11 +245,8 @@ class Coach(ABC):
 
             if self.args.training_mode == "mcts" or mode == "test":
                 self.log_mcts_results(game, history, mcts, mode, state)
-                history.states_to_perfect = (
-                    mcts.states_explored_till_perfect_fit
-                    if mcts.states_explored_till_perfect_fit > 0
-                    else 1000
-                )
+                if mcts.states_explored_till_perfect_fit > 0:
+                    history.states_to_perfect = mcts.states_explored_till_perfect_fit
 
         else:
             found_equation = None
@@ -284,9 +281,9 @@ class Coach(ABC):
         else:
             wandb.log(
                 {
-                    f"equation_not_found_{next_state.observation['true_equation_hash']}_{mode}": 1000,
-                    f"equation_not_found_{mode}": 1000,
-                    f"num_states_to_perfect_fit_{mode}": 1000,
+                    f"equation_not_found_{next_state.observation['true_equation_hash']}_{mode}": 0,
+                    f"equation_not_found_{mode}": 0,
+                    # f"num_states_to_perfect_fit_{mode}": 1,
                 }
             )
 
@@ -444,7 +441,10 @@ class Coach(ABC):
             metrics["solved"].update_state(
                 100 if self.episode_solved(episode_history) else 0
             )
-            metrics["states_to_perfect"].update_state(episode_history.states_to_perfect)
+            if episode_history.states_to_perfect > 0:
+                metrics["states_to_perfect"].update_state(
+                    episode_history.states_to_perfect
+                )
 
             # record episode video for better visualization
             if (
