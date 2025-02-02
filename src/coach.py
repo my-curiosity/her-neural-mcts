@@ -21,6 +21,10 @@ from moviepy import VideoFileClip, concatenate_videoclips
 import numpy as np
 from tqdm import trange
 
+from src.equation_modules.preprocess_data.equation_preprocess_dummy import (
+    get_dict_token_to_action,
+    equation_to_action_sequence,
+)
 from src.game.find_equation_game import FindEquationGame
 from src.game.game_history import GameHistory, sample_batch
 from datetime import datetime
@@ -37,6 +41,16 @@ from src.utils.logging import get_log_obj
 from src.utils.files import highest_number_in_files
 from definitions import ROOT_DIR
 from src.hindsight.hindsight import Hindsight
+
+
+def log_best_list(game, logger):
+    logger.info(f"Best equations found:")
+    for i in range(len(game.max_list.max_list_state) - 1, -1, -1):
+        logger.info(
+            f"{i}: found equation: {game.max_list.max_list_state[i].complete_discovered_equation:<80}"
+            f" r={round(game.max_list.max_list_keys[i], 3)}"
+        )
+        logger.info(game.max_list.max_list_state[i].syntax_tree.constants_in_tree)
 
 
 class Coach(ABC):
@@ -174,31 +188,41 @@ class Coach(ABC):
         # Always from perspective of player 1 for boardgames.
         state = game.getInitialState(mode)
 
-        formula_started_from = (
-            state.observation["current_tree_representation_str"]
-            if isinstance(game, FindEquationGame)
-            else None
-        )
+        if isinstance(game, FindEquationGame):
+            formula_started_from = state.observation["current_tree_representation_str"]
+
+            self.logger.info(
+                f"{mode}: equation for {state.observation['true_equation_hash']} is searched"
+            )
+
+        else:
+            formula_started_from = None
 
         i = 0
         while not state.done:
-            # Compute the move probability vector and state value using MCTS for the current state of the environment.
-            pi, v = mcts.run_mcts(
-                state=state,
-                num_mcts_sims=self.args.num_mcts_sims,
-                temperature=temp,
-                depth=i,
-            )
+            if (
+                not isinstance(game, FindEquationGame)
+                or self.args.training_mode == "mcts"
+                or mode == "test"
+            ):
+                # Compute the move probability vector and state value using MCTS for the current state of the environment.
+                pi, v = mcts.run_mcts(
+                    state=state,
+                    num_mcts_sims=self.args.num_mcts_sims,
+                    temperature=temp,
+                    depth=i,
+                )
+                # Take a step in the environment and observe the transition and store necessary statistics.
+                state.action = (
+                    np.argmax(pi)
+                    if not isinstance(game, FindEquationGame) or mode == "test"
+                    else np.random.choice(len(pi), p=pi)
+                )
 
-            # log move probabilities for the third step (as an example)
-            if not isinstance(game, FindEquationGame) and i == 2:
-                self.logger.debug(f"")
-                self.logger.debug(f"State: {state.observation['obs']['observation']}")
-                self.logger.debug(f"Goal: {state.observation['obs']['desired_goal']}")
-                self.logger.debug(f"Probabilities: {pi}")
-
-            # Take a step in the environment and observe the transition and store necessary statistics.
-            state.action = np.argmax(pi)  # np.random.choice(len(pi), p=pi)
+            else:
+                state.action, pi, v = self.get_supervised_action(
+                    iteration=i, state=state
+                )
 
             next_state, r = game.getNextState(
                 state=state, action=state.action, steps_done=i
@@ -210,42 +234,45 @@ class Coach(ABC):
             i += 1
 
         history.observations.append(state.observation)  # final observation
-        history.syntax_tree = (
-            state.syntax_tree if isinstance(game, FindEquationGame) else None
-        )
 
         if isinstance(game, FindEquationGame):
-            self.log_mcts_results(game, history, mcts, mode, state)
+            history.syntax_tree = state.syntax_tree
+            found_equation = state.syntax_tree.rearrange_equation_infix_notation(-1)[1]
+
+            self.logger.info(
+                f"{mode}: found {found_equation}, r = {history.rewards[-1]}"
+            )
+
+            if self.args.training_mode == "mcts" or mode == "test":
+                self.log_mcts_results(game, history, mcts, mode, state)
+                history.states_to_perfect = (
+                    mcts.states_explored_till_perfect_fit
+                    if mcts.states_explored_till_perfect_fit > 0
+                    else 1000
+                )
+
+        else:
+            found_equation = None
 
         game.close(state)
-        history.terminate(
-            formula_started_from=(
-                formula_started_from if isinstance(game, FindEquationGame) else None
-            ),
-            found_equation=(
-                state.syntax_tree.rearrange_equation_infix_notation(-1)[1]
-                if isinstance(game, FindEquationGame)
-                else None
-            ),
-        )
+        history.terminate(formula_started_from, found_equation)
         history.compute_returns(gamma=self.args.gamma)
+
         return history
 
     def log_mcts_results(self, game, history, mcts, mode, next_state):
-        # Cleanup environment and GameHistory
-        self.logger.info(f"Initial guess of NN: ")
-        initial_hash = list(mcts.Ps.keys())[0]
-        for i in np.where(mcts.valid_moves_for_s[initial_hash])[0]:
-            if (initial_hash, i) in mcts.Qsa:
-                self.logger.info(
-                    f"     {str(game.grammar._productions[i]._rhs) :<120}|"
-                    f" Ps: {round(mcts.Ps[initial_hash][i], 2):<10.2f}|"
-                    # f"init. Qsa: {round(mcts.initial_Qsa[(initial_hash, i)], 2) if (initial_hash, i) in mcts.initial_Qsa else 0:<10}"
-                    f" mcts: {round(history.probabilities[0][i], 2):<10}|"
-                    f" Qsa: {round(mcts.Qsa[(initial_hash, i)], 2):<10}|"
-                    f" #Ssa: {mcts.times_edge_s_a_was_visited[(initial_hash, i)]:<10}"
-                )
-            # self.logger.info(f"{' '*10}equation add to buffer: r={state.reward:.2} {complete_state.syntax_tree.__str__()}")
+        if mode == "test":
+            self.logger.info(f"Initial guess of NN: ")
+            initial_hash = list(mcts.Ps.keys())[0]
+            for i in np.where(mcts.valid_moves_for_s[initial_hash])[0]:
+                if (initial_hash, i) in mcts.Qsa:
+                    self.logger.info(
+                        f"     {str(game.grammar._productions[i]._rhs) :<120}|"
+                        f" Ps: {round(mcts.Ps[initial_hash][i], 2):<10.2f}|"
+                        f" mcts: {round(history.probabilities[0][i], 2):<10}|"
+                        f" Qsa: {round(mcts.Qsa[(initial_hash, i)], 2):<10}|"
+                        f" #Ssa: {mcts.times_edge_s_a_was_visited[(initial_hash, i)]:<10}"
+                    )
         if mcts.states_explored_till_perfect_fit > 0:
             wandb.log(
                 {
@@ -257,8 +284,9 @@ class Coach(ABC):
         else:
             wandb.log(
                 {
-                    f"equation_not_found_{next_state.observation['true_equation_hash']}_{mode}": 1,
-                    f"equation_not_found_{mode}": 1,
+                    f"equation_not_found_{next_state.observation['true_equation_hash']}_{mode}": 1000,
+                    f"equation_not_found_{mode}": 1000,
+                    f"num_states_to_perfect_fit_{mode}": 1000,
                 }
             )
 
@@ -298,12 +326,14 @@ class Coach(ABC):
             "reward": tf.keras.metrics.Mean(dtype=tf.float32),
             "return": tf.keras.metrics.Mean(dtype=tf.float32),
             "solved": tf.keras.metrics.Mean(dtype=tf.float32),
+            "states_to_perfect": tf.keras.metrics.Mean(dtype=tf.float32),
         }
         self.metrics_test = {
             "mode": "test",
             "reward": tf.keras.metrics.Mean(dtype=tf.float32),
             "return": tf.keras.metrics.Mean(dtype=tf.float32),
             "solved": tf.keras.metrics.Mean(dtype=tf.float32),
+            "states_to_perfect": tf.keras.metrics.Mean(dtype=tf.float32),
         }
 
         if self.args.load_pretrained:
@@ -330,10 +360,8 @@ class Coach(ABC):
                     f"Saved checkpoint for epoch {int(self.checkpoint.step)}: {save_path}"
                 )
 
-            test_now = (
-                self.args.gym_test_generalization != "off"
-                and self.checkpoint.step % self.args.test_frequency == 1
-            )
+            test_now = self.checkpoint.step % self.args.test_frequency == 1
+
             if test_now:
                 self.execute_one_iteration(
                     metrics=self.metrics_test,
@@ -350,6 +378,9 @@ class Coach(ABC):
                             f"reward_{m['mode']}": m["reward"].result(),
                             f"return_{m['mode']}": m["return"].result(),
                             f"solved_{m['mode']}": m["solved"].result(),
+                            f"states_to_perfect_{m['mode']}": m[
+                                "states_to_perfect"
+                            ].result(),
                         }
                     )
 
@@ -387,6 +418,8 @@ class Coach(ABC):
         metrics["reward"].reset_state()
         metrics["return"].reset_state()
         metrics["solved"].reset_state()
+        metrics["states_to_perfect"].reset_state()
+
         video_dir = os.getcwd() + "/video/"
         video_paths = []
 
@@ -411,6 +444,7 @@ class Coach(ABC):
             metrics["solved"].update_state(
                 100 if self.episode_solved(episode_history) else 0
             )
+            metrics["states_to_perfect"].update_state(episode_history.states_to_perfect)
 
             # record episode video for better visualization
             if (
@@ -423,6 +457,9 @@ class Coach(ABC):
                         video_dir, episode_history, i, metrics["mode"]
                     )
                 )
+
+            if isinstance(game, FindEquationGame):
+                log_best_list(game, self.logger)
 
             if metrics["mode"] == "train":
                 # add hindsight histories to ER
@@ -446,6 +483,8 @@ class Coach(ABC):
                         aggressive_returns_lambda=self.args.hindsight_aggressive_returns_lambda,
                         experience_ranking=self.args.hindsight_experience_ranking,
                         experience_ranking_threshold=self.args.hindsight_experience_ranking_threshold,
+                        # other arguments
+                        args=self.args,
                     )
                     self.trainExamplesHistory.extend(
                         hindsight.create_hindsight_samples()
@@ -454,8 +493,18 @@ class Coach(ABC):
                 # add real history to ER (at the end to access last state transition easily)
                 self.trainExamplesHistory.append(episode_history)
 
-                if self.checkpoint.step > self.args.cold_start_iterations:
+                if (
+                    self.args.training_after == "episode"
+                    and self.checkpoint.step > self.args.cold_start_iterations
+                ):
                     self.update_network()
+
+        if (
+            self.args.training_after == "iteration"
+            and metrics["mode"] == "train"
+            and self.checkpoint.step > self.args.cold_start_iterations
+        ):
+            self.update_network()
 
         # save and upload a concatenation of all game videos from this iteration
         if (
@@ -472,10 +521,7 @@ class Coach(ABC):
 
         :return: True iff episode with specified history was solved
         """
-        if isinstance(self.game, FindEquationGame):
-            return abs(episode_history.rewards[-1] - self.args.maximum_reward) < 0.001
-        else:  # gym
-            return episode_history.rewards[-1] == self.args.maximum_reward
+        return episode_history.rewards[-1] == self.args.maximum_reward
 
     def save_train_examples(self, iteration):
         """
@@ -595,3 +641,25 @@ class Coach(ABC):
         iter_video_path = f"{video_dir}iter{int(self.checkpoint.step)}_{mode}.mp4"
         iter_video.write_videofile(iter_video_path)
         wandb.log({"video": wandb.Video(iter_video_path, format="mp4")})
+
+    def get_supervised_action(self, iteration, state):
+        if self.args.grammar_for_generation == self.args.grammar_search:
+            action = state.observation["action_sequence"][iteration]
+        elif self.args.grammar_search == "Token_Based":
+            if not hasattr(self, "token_to_action"):
+                self.token_to_action = get_dict_token_to_action(
+                    grammar=self.game.reader.grammar
+                )
+                self.equation_to_action_sequence = {}
+            action_sequence = equation_to_action_sequence(
+                equation=state.observation["prefix_formula"],
+                token_to_action=self.token_to_action,
+                equation_to_action_sequence=self.equation_to_action_sequence,
+                grammar=self.game.reader.grammar,
+            )
+            action = action_sequence[iteration]
+        pi = np.zeros(self.mcts.action_size)
+        pi[action] = 1
+        v = 0
+
+        return action, pi, v

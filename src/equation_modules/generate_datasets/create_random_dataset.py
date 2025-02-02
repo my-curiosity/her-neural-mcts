@@ -20,7 +20,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--save_folder", help="where to save data_ set", required=True, type=str
     )
-    parser.add_argument("--grammar_for_generation ", default=True)
+    parser.add_argument("--grammar_for_generation", default=True)
+    parser.add_argument(
+        "--prior_source",
+        type=str,
+        default="neural_net",
+        choices=["neural_net", "grammar", "uniform"],
+        help="Select which source the prior used in MCTS should come from. "
+        "neural_net uses the recognition object, "
+        "grammar uses the probabilities from the grammar "
+        "uniform uses a uniform distribution above all options.",
+    )
     parser.add_argument(
         "--number_equations",
         default=2000,

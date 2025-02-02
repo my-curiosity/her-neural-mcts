@@ -177,6 +177,12 @@ class Config:
             default=False,
             help="Enables hindsight-combined experience replay (https://www.researchgate.net/publication/346030781).",
         )
+        parser.add_argument(
+            "--hindsight_gen_df",
+            type=str2bool,
+            default=False,
+            help="Enables generation of new datasets for equations at each goal relabeling.",
+        )
 
         # Game
         parser.add_argument(
@@ -825,6 +831,21 @@ class Config:
             type=str2bool,
             default=False,
             help="Set to true to save ER examples during training.",
+        )
+        parser.add_argument(
+            "--training_mode",
+            type=str,
+            choices=["supervised", "mcts"],
+            default="mcts",
+            help="If training data are generated in supervised way"
+            "or by running a MCTS.",
+        )
+        parser.add_argument(
+            "--training_after",
+            type=str,
+            choices=["episode", "iteration"],
+            default="episode",
+            help="At which point should the network be trained.",
         )
 
         args = parser.parse_args()

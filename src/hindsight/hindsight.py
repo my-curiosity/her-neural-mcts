@@ -5,6 +5,7 @@ from src.game.game_history import GameHistory
 import copy
 from src.equation_modules.generate_datasets.dataset_generator import (
     constant_dict_to_string,
+    DatasetGenerator,
 )
 from src.game.gym_game import GymGame
 from src.utils.logging import get_log_obj
@@ -34,6 +35,8 @@ class Hindsight:
 
     :param reward_noise: Amount of noise added to rewards to test learning stability
     :param logging_level: Importance of messages required for logging
+
+    :param args: Other global arguments
     """
 
     def __init__(
@@ -53,6 +56,7 @@ class Hindsight:
         experience_ranking_threshold=1,
         reward_noise=0,
         logging_level=30,
+        args=None,
     ):
         self.game = game
         self.episode_history = episode_history
@@ -76,6 +80,48 @@ class Hindsight:
         self.random = random.Random(x=seed)
         self.np_random = np.random.default_rng(seed=seed)
 
+        self.args = args
+
+        if isinstance(self.game, FindEquationGame) and self.args.hindsight_gen_df:
+            self.dataset_generator = DatasetGenerator(
+                grammar=self.game.grammar,
+                args=self.args,
+                experiment_dataset_dic={
+                    "num_calls_sampling": self.args.max_len_datasets,
+                    "x_0": {
+                        "distribution": np.random.uniform,
+                        "distribution_args": {
+                            "low": -5,
+                            "high": 5,
+                            "size": self.args.max_len_datasets,
+                        },
+                        "min_variable_range": 2,
+                        "generate_all_values_with_one_call": True,
+                        "sample_with_noise": False,
+                        "noise_std": 0.1,
+                    },
+                    "x_1": {
+                        "distribution": np.random.uniform,
+                        "distribution_args": {
+                            "low": -5,
+                            "high": 5,
+                            "size": self.args.max_len_datasets,
+                        },
+                        "min_variable_range": 2,
+                        "generate_all_values_with_one_call": True,
+                        "sample_with_noise": False,
+                        "noise_std": 0.1,
+                    },
+                    "c": {
+                        "distribution": np.random.uniform,
+                        "distribution_args": {
+                            "low": 0.5,
+                            "high": 5,
+                        },
+                    },
+                },
+            )
+
     def create_hindsight_samples(self):
         """
         Creates HER samples for the last played episode.
@@ -91,12 +137,13 @@ class Hindsight:
             hindsight_histories = []
             # get terminal states from mcts tree
             terminal_states = self.get_mcts_terminal_states()
-            if len(terminal_states) < self.num_trajectories:
-                return []
             # if possible, construct path to each of them from root
             trajectories = [
                 self.construct_trajectory_to_state(final_state=s)
-                for s in self.random.sample(terminal_states, self.num_trajectories)
+                for s in self.random.sample(
+                    population=terminal_states,
+                    k=min(self.num_trajectories, len(terminal_states)),
+                )
             ]
             # add hindsight using constructed trajectories
             for t in trajectories:
@@ -289,26 +336,37 @@ class Hindsight:
         relabeled_observation = copy.deepcopy(observation)
         if isinstance(self.game, FindEquationGame):
             try:
-                y_calc = syntax_tree.evaluate_subtree(
-                    node_id=syntax_tree.start_node.node_id,
-                    dataset=relabeled_observation["data_frame"],
-                )
-                if np.all(np.isfinite(y_calc)):
-                    c_string_backward = constant_dict_to_string(syntax_tree)
-                    equation_string = (
-                        f"{syntax_tree.rearrange_equation_infix_notation(-1)[1]}"
+                if self.args.hindsight_gen_df:
+                    syntax_tree.constants_in_tree["num_fitted_constants"] = 0
+                    df = self.dataset_generator.create_experiment_dataset(
+                        equation=syntax_tree
                     )
-                    relabeled_observation["data_frame"]["y"] = y_calc
-                    relabeled_observation["true_equation"] = (
-                        f"{equation_string}_{c_string_backward}"
-                    )
-                    relabeled_observation["true_equation_hash"] = (
-                        equation_string.strip()
-                    )
-                    return relabeled_observation
+                    if np.all(np.isfinite(df)):
+                        relabeled_observation["data_frame"] = df
+                    else:
+                        self.logger.info("infinite value in df calculation")
+                        return None
                 else:
-                    self.logger.debug("infinite value in y calculation")
-                    return None
+                    y_calc = syntax_tree.evaluate_subtree(
+                        node_id=syntax_tree.start_node.node_id,
+                        dataset=relabeled_observation["data_frame"],
+                    )
+                    if np.all(np.isfinite(y_calc)):
+                        relabeled_observation["data_frame"]["y"] = y_calc
+                    else:
+                        self.logger.debug("infinite value in y calculation")
+                        return None
+
+                c_string_backward = constant_dict_to_string(syntax_tree)
+                equation_string = (
+                    f"{syntax_tree.rearrange_equation_infix_notation(-1)[1]}"
+                )
+                relabeled_observation["true_equation"] = (
+                    f"{equation_string}_{c_string_backward}"
+                )
+                relabeled_observation["prefix_formula"] = syntax_tree.__str__()
+                relabeled_observation["true_equation_hash"] = equation_string.strip()
+                return relabeled_observation
             except Exception as e:
                 self.logger.debug(
                     "y calculation failed: " + getattr(e, "message", repr(e))
@@ -440,6 +498,10 @@ class Hindsight:
                 self.mcts.Ssa[key]
                 for key in list(self.mcts.Ssa.keys())
                 if self.mcts.Ssa[key].syntax_tree.complete
+                # and self.mcts.Ssa[key].syntax_tree.constants_in_tree[
+                #     "num_fitted_constants"
+                # ]
+                # > 0
             ]
         else:
             return [

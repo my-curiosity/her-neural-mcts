@@ -14,6 +14,8 @@ Notes:
 import copy
 import typing
 import numpy as np
+
+from src.game.find_equation_game import FindEquationGame
 from src.game.game import GameState
 from src.utils.logging import get_log_obj
 from src.utils.utils import tie_breaking_argmax
@@ -88,6 +90,14 @@ class ClassicMCTS:
 
         # Aggregate root state value over MCTS back-propagated values
         mct_return_list = []
+
+        if isinstance(self.game, FindEquationGame):
+            num_mcts_sims = int(
+                max(
+                    10,
+                    num_mcts_sims * 4 ** (-(len(state.syntax_tree.dict_of_nodes) - 2)),
+                )
+            )
         for num_sim in range(num_mcts_sims):
             mct_return = self._search(state=state, depth=depth)
             mct_return_list.append(mct_return)
@@ -294,7 +304,7 @@ class ClassicMCTS:
                 value = (value_search + value) / 2
         else:
             # next state is done
-            if reward >= 0.98:
+            if self.states_explored_till_perfect_fit < 0 and reward > 0.999:
                 self.states_explored_till_perfect_fit = len(self.times_s_was_visited)
         return value
 

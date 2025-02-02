@@ -40,13 +40,23 @@ class FindEquationGame(Game):
                 f"{self.args.equation_preprocess_class}"
             )
 
+        # test on a fixed set of equations & datasets
+        self.reader_test = PandasPreprocess(
+            args=args, train_test_or_val="test", grammar=self.grammar
+        )
+
         self.iterator = self.reader.get_datasets()
+        self.iterator_test = self.reader_test.get_datasets()
+
         self.action_size = len(self.grammar._productions)
         self.dataset_columns = self.reader.dataset_columns
 
     def getInitialState(self, mode="train") -> GameState:
         self.max_list = MaxList(self.args)
-        batch_data = next(self.iterator)
+        batch_data = (
+            next(self.iterator) if mode == "train" else next(self.iterator_test)
+        )
+
         observations = {
             "data_frame": batch_data["data_frame"],
         }

@@ -13,6 +13,8 @@ Notes:
 
 import typing
 import numpy as np
+
+from src.game.find_equation_game import FindEquationGame
 from src.game.game import GameState
 from src.utils.utils import tie_breaking_argmax
 from src.mcts.classic_mcts import ClassicMCTS
@@ -73,6 +75,14 @@ class AmEx_MCTS(ClassicMCTS):
         not_completely_explored = np.any(
             self.not_completely_explored_moves_for_s[state.hash]
         )
+
+        if isinstance(self.game, FindEquationGame):
+            num_mcts_sims = int(
+                max(
+                    10,
+                    num_mcts_sims * 4 ** (-(len(state.syntax_tree.dict_of_nodes) - 2)),
+                )
+            )
         for num_sim in range(num_mcts_sims):
             if not_completely_explored:
                 mct_return, not_completely_explored = self._search(
@@ -312,7 +322,7 @@ class AmEx_MCTS(ClassicMCTS):
             ] * self.action_size
             self.not_completely_explored_moves_for_s[state_hash][a] = False
             self.times_s_was_visited[next_state_hash] += 1  # debug value
-            if reward >= 0.98:
+            if self.states_explored_till_perfect_fit < 0 and reward > 0.999:
                 self.states_explored_till_perfect_fit = len(self.times_s_was_visited)
         return value
 
