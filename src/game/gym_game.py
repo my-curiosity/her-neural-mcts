@@ -65,7 +65,7 @@ class GymGame(Game):
         add_prior(self.grammar, args)
 
     def getInitialState(self, mode="train") -> GymGameState:
-        if mode == "test":
+        if self.args.gym_test_generalization != "off" and mode == "test":
             if self.args.gym_test_generalization == "unseen":
                 # force unseen goals only
                 goal = random.choice(self.blocked_goals)
