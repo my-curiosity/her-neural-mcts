@@ -173,6 +173,7 @@ class TestA0(unittest.TestCase):
             " --hindsight_aggressive_returns_lambda 1"
             " --hindsight_experience_ranking False"
             " --hindsight_experience_ranking_threshold 0.5"
+            " --hindsight_combined_experience_replay False"
             " --game equation"
             " --project_name her-neural-mcts-equation"
         ).split()

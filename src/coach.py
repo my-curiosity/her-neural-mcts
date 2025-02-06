@@ -274,6 +274,7 @@ class Coach(ABC):
             wandb.log(
                 {
                     f"num_states_to_perfect_fit_{mode}": mcts.states_explored_till_perfect_fit,
+                    f"num_states_to_perfect_fit_with_failed_{mode}": mcts.states_explored_till_perfect_fit,
                     f"{next_state.observation['true_equation_hash']}"
                     f"_num_states_to_perfect_fit_{mode}": mcts.states_explored_till_perfect_fit,
                 }
@@ -283,7 +284,7 @@ class Coach(ABC):
                 {
                     f"equation_not_found_{next_state.observation['true_equation_hash']}_{mode}": 0,
                     f"equation_not_found_{mode}": 0,
-                    # f"num_states_to_perfect_fit_{mode}": 1,
+                    f"num_states_to_perfect_fit_with_failed_{mode}": 1000,
                 }
             )
 
@@ -324,6 +325,7 @@ class Coach(ABC):
             "return": tf.keras.metrics.Mean(dtype=tf.float32),
             "solved": tf.keras.metrics.Mean(dtype=tf.float32),
             "states_to_perfect": tf.keras.metrics.Mean(dtype=tf.float32),
+            "states_to_perfect_with_failed": tf.keras.metrics.Mean(dtype=tf.float32),
         }
         self.metrics_test = {
             "mode": "test",
@@ -331,6 +333,7 @@ class Coach(ABC):
             "return": tf.keras.metrics.Mean(dtype=tf.float32),
             "solved": tf.keras.metrics.Mean(dtype=tf.float32),
             "states_to_perfect": tf.keras.metrics.Mean(dtype=tf.float32),
+            "states_to_perfect_with_failed": tf.keras.metrics.Mean(dtype=tf.float32),
         }
 
         if self.args.load_pretrained:
@@ -378,6 +381,9 @@ class Coach(ABC):
                             f"states_to_perfect_{m['mode']}": m[
                                 "states_to_perfect"
                             ].result(),
+                            f"states_to_perfect_with_failed_{m['mode']}": m[
+                                "states_to_perfect_with_failed"
+                            ].result(),
                         }
                     )
 
@@ -416,6 +422,7 @@ class Coach(ABC):
         metrics["return"].reset_state()
         metrics["solved"].reset_state()
         metrics["states_to_perfect"].reset_state()
+        metrics["states_to_perfect_with_failed"].reset_state()
 
         video_dir = os.getcwd() + "/video/"
         video_paths = []
@@ -445,6 +452,11 @@ class Coach(ABC):
                 metrics["states_to_perfect"].update_state(
                     episode_history.states_to_perfect
                 )
+                metrics["states_to_perfect_with_failed"].update_state(
+                    episode_history.states_to_perfect
+                )
+            else:
+                metrics["states_to_perfect_with_failed"].update_state(1000)
 
             # record episode video for better visualization
             if (
