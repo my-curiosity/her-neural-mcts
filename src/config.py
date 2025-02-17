@@ -259,6 +259,12 @@ class Config:
             " from which the weights of the dataset encoder are copied.",
             type=str,
         )
+        parser.add_argument(
+            "--supervised_gen_df",
+            type=str2bool,
+            default=False,
+            help="Enables generation of new datasets for equations at each state in supervised learning.",
+        )
 
         # Tree
         parser.add_argument(

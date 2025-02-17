@@ -21,6 +21,10 @@ from moviepy import VideoFileClip, concatenate_videoclips
 import numpy as np
 from tqdm import trange
 
+from src.equation_modules.generate_datasets.dataset_generator import (
+    DatasetGenerator,
+    constant_dict_to_string,
+)
 from src.equation_modules.preprocess_data.equation_preprocess_dummy import (
     get_dict_token_to_action,
     equation_to_action_sequence,
@@ -93,6 +97,50 @@ class Coach(ABC):
         # Initialize network and search engine
         self.rule_predictor = rule_predictor
         self.mcts = search_engine(self.game, self.args, self.rule_predictor)
+
+        # Initialize generator for new equation dataframes
+        if (
+            isinstance(self.game, FindEquationGame)
+            and self.args.training_mode == "supervised"
+        ):
+            self.dataset_generator = DatasetGenerator(
+                grammar=self.game.grammar,
+                args=self.args,
+                experiment_dataset_dic={
+                    "num_calls_sampling": self.args.max_len_datasets,
+                    "x_0": {
+                        "distribution": np.random.uniform,
+                        "distribution_args": {
+                            "low": -5,
+                            "high": 5,
+                            "size": self.args.max_len_datasets,
+                        },
+                        "min_variable_range": 2,
+                        "generate_all_values_with_one_call": True,
+                        "sample_with_noise": False,
+                        "noise_std": 0.1,
+                    },
+                    "x_1": {
+                        "distribution": np.random.uniform,
+                        "distribution_args": {
+                            "low": -5,
+                            "high": 5,
+                            "size": self.args.max_len_datasets,
+                        },
+                        "min_variable_range": 2,
+                        "generate_all_values_with_one_call": True,
+                        "sample_with_noise": False,
+                        "noise_std": 0.1,
+                    },
+                    "c": {
+                        "distribution": np.random.uniform,
+                        "distribution_args": {
+                            "low": 0.5,
+                            "high": 5,
+                        },
+                    },
+                },
+            )
 
         if run_name is None:
             run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -242,6 +290,34 @@ class Coach(ABC):
             self.logger.info(
                 f"{mode}: found {found_equation}, r = {history.rewards[-1]}"
             )
+
+            # Optionally use a new dataframe in each supervised state (similarly to HER goal relabeling)
+            if self.args.supervised_gen_df and self.args.training_mode == "supervised":
+                for obs in history.observations:
+                    try:
+                        history.syntax_tree.constants_in_tree[
+                            "num_fitted_constants"
+                        ] = 0
+                        df = self.dataset_generator.create_experiment_dataset(
+                            equation=history.syntax_tree
+                        )
+                        if np.all(np.isfinite(df)):
+                            obs["data_frame"] = df
+                            c_string_backward = constant_dict_to_string(
+                                history.syntax_tree
+                            )
+                            equation_string = f"{history.syntax_tree.rearrange_equation_infix_notation(-1)[1]}"
+                            obs["true_equation"] = (
+                                f"{equation_string}_{c_string_backward}"
+                            )
+                            obs["prefix_formula"] = history.syntax_tree.__str__()
+                            obs["true_equation_hash"] = equation_string.strip()
+                        else:
+                            self.logger.info("infinite value in df calculation")
+                    except Exception as e:
+                        self.logger.debug(
+                            "df recalculation failed: " + getattr(e, "message", repr(e))
+                        )
 
             if self.args.training_mode == "mcts" or mode == "test":
                 self.log_mcts_results(game, history, mcts, mode, state)
