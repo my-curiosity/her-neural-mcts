@@ -292,7 +292,11 @@ class Coach(ABC):
             )
 
             # Optionally use a new dataframe in each supervised state (similarly to HER goal relabeling)
-            if self.args.supervised_gen_df and self.args.training_mode == "supervised":
+            if (
+                mode == "train"
+                and self.args.supervised_gen_df
+                and self.args.training_mode == "supervised"
+            ):
                 for obs in history.observations:
                     try:
                         history.syntax_tree.constants_in_tree[
