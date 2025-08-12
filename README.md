@@ -63,3 +63,8 @@ and https://github.com/kaesve/muzero (MIT licensed, see [here](license/LICENSE-a
 [here](license/LICENSE-amex)).
 - BitFlip environment is based on https://github.com/NervanaSystems/gym-bit-flip/blob/master/gym_bit_flip/bit_flip.py
 (Apache, see [here](https://pypi.org/project/gym-bit-flip/)).
+
+
+## License
+
+[MIT](license/LICENSE), except for third-party code mentioned above.
